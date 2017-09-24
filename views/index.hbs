@@ -1,0 +1,24 @@
+<section class="ui middle aligned segment">
+  <div class="ui grid container">
+    {{#each tables}}
+      <div class="four wide column">
+      <table class="ui selectable compact celled table">
+        <thead>
+        <tr>
+          <th>{{month}}</th>
+          <th>€{{prize}}</th>
+        </tr>
+        </thead>
+        {{#each content}}
+          <tbody>
+          <tr>
+            <td>{{name}}</td>
+            <td>{{score}}</td>
+          </tr>
+          </tbody>
+        {{/each}}
+      </table>
+      </div>
+    {{/each}}
+  </div>
+</section>

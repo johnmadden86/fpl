@@ -1,0 +1,20 @@
+{
+  "description": "fpl log refactor",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.15.4",
+    "lowdb": "^1.0.0",
+    "request": "^2.81.0",
+    "winston": "^2.3.1"
+  },
+  "engines": {
+    "node": "8.x"
+  },
+  "repository": {
+    "url": "https://github.com/johnmadden86/summer_project"
+  },
+  "license": "MIT"
+}
