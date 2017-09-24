@@ -5,10 +5,10 @@ const logger = require('./utils/logger');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const fileUpload = require('express-fileupload');
+const exphbs = require('express-handlebars');
 
 const app = express();
 app.use(cookieParser());
-const exphbs = require('express-handlebars');
 app.use(bodyParser.urlencoded({ extended: false, }));
 app.use(express.static('public'));
 app.use(fileUpload());
@@ -28,7 +28,5 @@ app.use(express.static('public'));
 const listener = app.listen(process.env.PORT || 4000, function () {
   logger.info('Your app is listening on port ' + listener.address().port);
   fpl.getGameDetails();
-
-  //fpl.getLeagueDetails(6085);
 });
 
