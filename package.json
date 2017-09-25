@@ -11,14 +11,14 @@
     "express-fileupload": "^0.2.0",
     "express-handlebars": "^3.0.0",
     "lowdb": "^1.0.0",
-    "request": "^2.81.0",
+    "request": "^2.82.0",
     "winston": "^2.3.1"
   },
   "engines": {
     "node": "8.x"
   },
   "repository": {
-    "url": "https://github.com/johnmadden86/summer_project"
+    "url": "https://github.com/johnmadden86/fpl"
   },
   "license": "MIT"
 }

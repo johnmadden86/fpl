@@ -4,6 +4,7 @@ const logger = require('../utils/logger');
 const fplUrl = 'https://fantasy.premierleague.com/drf/';
 let gameDetails;
 const players = [];
+const tables = [];
 let requestOptions = {
   url: fplUrl,
   method: 'GET',
@@ -12,7 +13,14 @@ let requestOptions = {
 
 const fpl = {
 
-  //https://fantasy.premierleague.com/drf/event/i/live
+  /*
+  getLiveData(player, footballer, match) {
+    requestOptions.url = fplUrl + 'event/' + gameDetails.thisGameWeek + '/live';
+    request(requestOptions, async (error, response, body) => {
+    });
+  },
+  */
+
   getGameDetails() {
     requestOptions.url = fplUrl + 'bootstrap-static';
     request(requestOptions, async (error, response, body) => {
@@ -21,8 +29,9 @@ const fpl = {
         nextGameWeek: body['next-event'],
         months: body.phases,
       };
+      gameDetails.nextDeadline = body.events[gameDetails.nextGameWeek].deadline_time;
 
-      gameDetails.months.forEach(function (month) {
+      gameDetails.months.forEach((month) => {
         delete month.id;
       });
 
@@ -43,7 +52,7 @@ const fpl = {
       }
 
       gameDetails.currentMonth = currentMonth;
-      logger.debug('Got game details');
+      logger.debug('Got game details ' + new Date());
       fpl.getLeagueDetails(6085);
     });
   },
@@ -63,14 +72,15 @@ const fpl = {
         players.push(player);
       }
 
-      logger.debug(players.length + ' players got');
-      players.forEach(function (player) {
-        fpl.getPlayerScores(player);
+      logger.debug(players.length + ' players got ' + new Date());
+      let counter = [];
+      players.forEach((player) => {
+        fpl.getPlayerScores(player, counter);
       });
     });
   },
 
-  getPlayerScores(player) {
+  getPlayerScores(player, counter) {
     let i = 1;
     while (i < gameDetails.nextGameWeek) {
       requestOptions.url = fplUrl + 'entry/' + player.teamId + '/event/' + i + '/picks';
@@ -85,14 +95,13 @@ const fpl = {
         weekScore.netScore = weekScore.points - weekScore.transferCost;
         player.weekScores.push(weekScore);
         if (player.weekScores.length === gameDetails.thisGameWeek) {
-          player.weekScores.sort(
-              function (a, b) {
-                let gwA = a.gameWeek;
-                let gwB = b.gameWeek;
-                return gwA - gwB;
-              });
-
-          fpl.getMonthScores(player);
+          player.weekScores.sort((a, b) => {
+            let gwA = a.gameWeek;
+            let gwB = b.gameWeek;
+            return gwA - gwB;
+          });
+          logger.debug('got scores for ' + player.playerName + ' ' + new Date());
+          fpl.getMonthScores(player, counter);
         }
       });
 
@@ -101,7 +110,7 @@ const fpl = {
 
   },
 
-  getMonthScores(player) {
+  getMonthScores(player, counter) {
     let i = 0;
     let j = 0;
     let points = 0;
@@ -119,12 +128,36 @@ const fpl = {
       i++;
     }
 
+    logger.debug('got month scores for ' + player.playerName + ' ' + new Date());
+
     player.monthScores = monthScore;
+    counter.push(player.teamId);
+    fpl.createTables(counter);
+  },
+
+  createTables(counter) {
+    if (counter.length === players.length) {
+      logger.debug('Creating tables');
+      let i = 0;
+      while (i < gameDetails.months.length) {
+        const table = {
+          month: gameDetails.months[i].name,
+          content: fpl.createTable(gameDetails.months[i].name),
+          prize: 5 * (gameDetails.months[i].stop_event - gameDetails.months[i].start_event + 1),
+        };
+        tables.push(table);
+        if (table.month === gameDetails.currentMonth) {
+          break;
+        }
+
+        i++;
+      }
+    }
   },
 
   createTable(month) {
     const table = [];
-    players.forEach(function (player) {
+    players.forEach((player) => {
       const entry = {
         name: player.playerName,
         score: player.monthScores.get(month),
@@ -132,32 +165,16 @@ const fpl = {
       table.push(entry);
     });
 
-    table.sort(function (a, b) {
+    table.sort((a, b) => {
       let scoreA = a.score;
       let scoreB = b.score;
       return scoreB - scoreA;
     });
-
+    logger.debug('table created for ' + month + ' ' + new Date());
     return table;
   },
 
   index(request, response) {
-    let i = 0;
-    const tables = [];
-    while (i < gameDetails.months.length) {
-      const table = {
-        month: gameDetails.months[i].name,
-        content: fpl.createTable(gameDetails.months[i].name),
-        prize: 5 * (gameDetails.months[i].stop_event - gameDetails.months[i].start_event + 1),
-      };
-      tables.push(table);
-      if (gameDetails.months[i].name === gameDetails.currentMonth) {
-        break;
-      }
-
-      i++;
-    }
-
     const viewData = {
       title: 'Welcome',
       players: players,
