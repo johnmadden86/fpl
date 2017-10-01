@@ -2,11 +2,13 @@
 const request = require('request');
 const logger = require('../utils/logger');
 const fplUrl = 'https://fantasy.premierleague.com/drf/';
+const Handlebars = require('../utils/handlebar-helper');
 let gameDetails;
 let footballers = {};
 
 const players = {};
-const tables = {};
+let overallTable;
+let tables = [];
 const rounds = [];
 const cupTables = [];
 let time = new Date();
@@ -165,7 +167,9 @@ const fpl = {
       const results = await body.standings.results;
       for (let result of results) {
         players[result.entry] = result;
+        players[result.entry].liveWeekTotal = 0;
         fpl.getScores(players[result.entry]);
+        fpl.getTeams(players[result.entry]);
       }
 
       logger.debug(results.length + ' players got ' + timeToLoad());
@@ -209,7 +213,9 @@ const fpl = {
     player.monthScores = monthScore;
     counter++;
     if (counter === Object.keys(players).length) {
+      tables = [];
       fpl.createTables();
+      fpl.overallTable();
       counter = 0;
     }
   },
@@ -218,17 +224,47 @@ const fpl = {
     logger.debug('Creating tables');
     let i = 1;
     while (i < gameDetails.months.length) {
-      tables[gameDetails.months[i].name] = {
+      const table = {
         month: gameDetails.months[i].name,
         content: fpl.createTable(gameDetails.months[i].name),
         prize: 5 * (gameDetails.months[i].stop_event - gameDetails.months[i].start_event + 1),
       };
-      if (tables[gameDetails.months[i].name].month === gameDetails.currentMonth) {
+      tables.push(table);
+      if (table.month === gameDetails.currentMonth) {
         break;
       }
 
       i++;
     }
+  },
+
+  overallTable() {
+    let table = [];
+    Object.keys(players).forEach(function (player) {
+      const entry = {
+        name: players[player].player_name,
+      };
+
+      let score = 0;
+      Object.keys(players[player].weekScores).forEach(function (weekScore) {
+        score += players[player].weekScores[weekScore].netScore;
+      });
+
+      entry.score = score;
+      table.push(entry);
+    });
+
+    table.sort((a, b) => {
+      let scoreA = a.score;
+      let scoreB = b.score;
+      return scoreB - scoreA;
+    });
+
+    table[0].prize = '€240';
+    table[1].prize = '€80';
+
+    overallTable = table;
+    logger.debug('Overall table created' + timeToLoad());
   },
 
   createTable(month) {
@@ -250,6 +286,137 @@ const fpl = {
     return table;
   },
 
+  getTeams(player) {
+    requestOptions.url = fplUrl + 'entry/' + player.entry + '/event/' + gameDetails.thisGameWeek + '/picks';
+    request(requestOptions, async (err, response, body) => {
+      const picks = await body.picks;
+      let team = [];
+      let i = 0;
+      while (i < picks.length) {
+        picks[i].name = footballers[picks[i].element].web_name;
+        picks[i].playingPosition = footballers[picks[i].element].element_type;
+        team.push(picks[i]);
+        i++;
+      }
+
+      let df = 0;
+      let mf = 0;
+      let fw = 0;
+      let j = 1;
+      while (team[j].playingPosition === 2) {
+        df++;
+        j++;
+      }
+
+      while (team[j].playingPosition === 3) {
+        mf++;
+        j++;
+      }
+
+      while (team[j].playingPosition === 4) {
+        fw++;
+        j++;
+      }
+
+      player.formation = df + '-' + mf + '-' + fw;
+
+      const transferDetails = await {
+        chip: body.active_chip,
+        transfers: body.entry_history.event_transfers,
+        pointsHit: body.entry_history.event_transfers_cost * -1,
+      };
+
+      team.forEach(function (footballer) {
+        fpl.getLiveScores(player, footballer);
+      });
+
+      player.team = team;
+      player.transferDetails = transferDetails;
+    });
+  },
+
+  getLiveScores(player, footballer) {
+    requestOptions.url = fplUrl + 'element-summary/' + footballer.element;
+    request(requestOptions, async (err, response, body) => {
+      const scoreTypes = await body.explain['0'].explain;
+      let points = 0;
+      let i = 0;
+      while (i < Object.keys(scoreTypes).length) {
+        let key = Object.keys(scoreTypes)[i];
+        points += scoreTypes[key].points;
+        i++;
+      }
+
+      if (body.explain['0'].fixture.stats.length > 0) {
+
+        const bpsAway = body.explain['0'].fixture.stats[9].bps.a;
+        const bpsHome = body.explain['0'].fixture.stats[9].bps.h;
+        const bps = bpsAway.concat(bpsHome);
+        bps.sort(function (a, b) {
+          return b.value - a.value;
+        });
+
+        let threeBonusCount = 0;
+        let twoBonusCount = 0;
+        let oneBonusCount = 0;
+        let i = 0;
+        while (bps[0].value === bps[i].value) {
+          threeBonusCount++;
+          i++;
+        }
+
+        while (threeBonusCount === 1 && bps[threeBonusCount].value === bps[i].value) {
+          twoBonusCount++;
+          i++;
+        }
+
+        while (threeBonusCount + twoBonusCount === 2 && bps[threeBonusCount + twoBonusCount].value === bps[i].value) {
+          oneBonusCount++;
+          i++;
+        }
+
+        let bonus = 0;
+        let j = 0;
+        while (j < threeBonusCount) {
+          if (bps[j].element === footballer.element) {
+            bonus = 3;
+          }
+
+          j++;
+          while (j < threeBonusCount + twoBonusCount) {
+            if (bps[j].element === footballer.element) {
+              bonus = 2;
+            }
+
+            j++;
+            while (j < threeBonusCount + twoBonusCount + oneBonusCount) {
+              if (bps[j].element === footballer.element) {
+                bonus = 1;
+              }
+
+              j++;
+            }
+          }
+        }
+
+        if (!scoreTypes.bonus) {
+          points += bonus;
+        }
+
+        points *= footballer.multiplier;
+        if (footballer.position <= 11) {
+          player.liveWeekTotal += points;
+        }
+
+        if (body.explain['0'].explain.minutes.value === 0 && body.explain['0'].fixture.started === true) {
+          points = '-';
+        }
+
+        footballer.liveScore = points;
+      }
+    });
+  },
+
   index(request, response) {
     const viewData = {
       title: 'Welcome',
@@ -257,7 +424,7 @@ const fpl = {
       gameDetails: gameDetails,
       tables: tables,
       loading: loading,
-      length: players.length,
+      overallTable: overallTable,
     };
     logger.info('Rendering index ' + timeToLoad());
     response.render('index', viewData);

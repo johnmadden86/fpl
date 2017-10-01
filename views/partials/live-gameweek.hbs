@@ -1,0 +1,29 @@
+<div class="ui grid container center aligned">
+  {{#each players}}
+    <div class="column three wide">
+      <table class="ui selectable compact celled table">
+        <thead>
+        <tr>
+          <th colspan="2">
+            {{player_name}}{{#if transferDetails.chip}} ({{transferDetails.chip}}){{/if}}<br>
+            <span class="ui sub header">
+            Transfers: {{transferDetails.transfers}} {{blankIfZero transferDetails.pointsHit}}
+              <br>{{formation}}
+            </span>
+          </th>
+          <th>{{liveWeekTotal}}</th>
+        </tr>
+        </thead>
+        <tbody>
+        {{#each team}}
+          <tr>
+            <td>{{numberToPosition playingPosition}}</td>
+            <td>{{name}}{{#if is_captain}}  (c){{/if}}{{#if is_vice_captain}}  (v){{/if}}</td>
+            <td>{{liveScore}}</td>
+          </tr>
+        {{/each}}
+        </tbody>
+      </table>
+    </div>
+  {{/each}}
+</div>
