@@ -1,0 +1,32 @@
+<div class="column eight wide middle aligned">
+  {{#each cupTables}}
+    <table class="ui selectable compact celled table">
+      <thead>
+      <tr>
+        <th>{{name}}</th>
+        <th>P</th>
+        <th>W</th>
+        <th>D</th>
+        <th>L</th>
+        <th>F</th>
+        <th>A</th>
+        <th>Pts</th>
+      </tr>
+      </thead>
+      <tbody>
+      {{#each group}}
+        <tr>
+          <td>{{player_name}}</td>
+          <td>{{tableEntry.played}}</td>
+          <td>{{tableEntry.won}}</td>
+          <td>{{tableEntry.drawn}}</td>
+          <td>{{tableEntry.lost}}</td>
+          <td>{{tableEntry.for}}</td>
+          <td>{{tableEntry.against}}</td>
+          <td>{{tableEntry.points}}</td>
+        </tr>
+      {{/each}}
+      </tbody>
+    </table>
+  {{/each}}
+</div>

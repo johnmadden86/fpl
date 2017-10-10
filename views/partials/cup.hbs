@@ -1,0 +1,23 @@
+<div class="column eight wide">
+  {{#each cup}}
+    <div class="ui medium header">Gameweek {{gameWeek}}</div>
+    <table class="ui selectable compact celled table">
+      {{#each events}}
+        <thead>
+        <tr>
+          <th colspan="3">{{name}}</th>
+        </tr>
+        </thead>
+        <tbody>
+        {{#each fixtures}}
+          <tr>
+            <td>{{team1.player_name}}</td>
+            <td>{{#if score1}}{{score1}} - {{score2}}{{else}}v{{/if}}</td>
+            <td>{{team2.player_name}}</td>
+          </tr>
+        {{/each}}
+        </tbody>
+      {{/each}}
+    </table>
+  {{/each}}
+</div>
