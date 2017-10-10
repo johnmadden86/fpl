@@ -1,26 +1,24 @@
-<div class="ui grid container">
-  <div class="column six wide">
-    <table class="ui selectable compact celled table">
-      <thead>
-      <tr>
-        <th>Transfers</th>
-        <th>In</th>
-        <th>Out</th>
-      </tr>
-      </thead>
-      <tbody>
-      {{#each players}}
-        {{#each transferHistory}}
-          {{#if latest}}
-            <tr>
-              <td>{{../player_name}}</td>
-              <td><i class="green chevron circle up icon"></i> {{playerIn}}</td>
-              <td><i class="red chevron circle down icon"></i> {{playerOut}}</td>
-            </tr>
-          {{/if}}
-        {{/each}}
+<div class="column six wide">
+  <table class="ui selectable compact celled table">
+    <thead>
+    <tr>
+      <th>Transfers</th>
+      <th>In</th>
+      <th>Out</th>
+    </tr>
+    </thead>
+    <tbody>
+    {{#each players}}
+      {{#each transferHistory}}
+        {{#if latest}}
+          <tr>
+            <td>{{../player_name}}</td>
+            <td><i class="green chevron circle up icon"></i> {{playerIn}}</td>
+            <td><i class="red chevron circle down icon"></i> {{playerOut}}</td>
+          </tr>
+        {{/if}}
       {{/each}}
-      </tbody>
-    </table>
-  </div>
+    {{/each}}
+    </tbody>
+  </table>
 </div>

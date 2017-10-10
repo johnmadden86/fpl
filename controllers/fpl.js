@@ -87,6 +87,9 @@ const fpl = {
         picks[i].name = footballers[picks[i].element].web_name;
         picks[i].playingPosition = footballers[picks[i].element].element_type;
         team.push(picks[i]);
+        if (picks[i].is_captain) {
+          player.captain = picks[i].name;
+        }
       }
 
       let df = 0;
@@ -614,7 +617,6 @@ const fpl = {
         return a.transferDetails.totalTransfers - b.transferDetails.totalTransfers;
       }
     });
-
     const viewData = {
       title: 'Welcome',
       players: playersSorted,
