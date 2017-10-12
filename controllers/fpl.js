@@ -6,6 +6,7 @@ const Handlebars = require('../utils/handlebar-helper');
 let gameDetails;
 let footballers = {};
 const players = {};
+let playersSorted;
 let overallTable;
 let tables = [];
 let time = new Date();
@@ -15,10 +16,11 @@ function timeToLoad() {
   return ' in ' + timeToLoad + ' secs';
 }
 
-const cup = [];
+let cup;
 let cupTables = [];
+let liveScoreCounter;
 let counter = 0;
-let loading = true;
+let loading;
 let requestOptions = {
   url: fplUrl,
   method: 'GET',
@@ -27,8 +29,22 @@ let requestOptions = {
 
 const fpl = {
 
+  runApp() {
+    loading = true;
+    fpl.getGameDetails();
+    let attempt = 2;
+    function run() {
+      logger.info('Attempt ' + attempt);
+      time = new Date();
+      attempt++;
+      fpl.getGameDetails();
+    }
+
+    setInterval(run, 1000 * 60 * 2);
+  },
+
   getGameDetails() {
-    time = new Date();
+    liveScoreCounter = 0;
     requestOptions.url = fplUrl + 'bootstrap-static';
     request(requestOptions, async (error, response, body) => {
       gameDetails = await {
@@ -121,7 +137,25 @@ const fpl = {
 
       player.team = team;
       player.transferDetails = transferDetails;
+      logger.info('team details retrieved for ' + player.player_name + timeToLoad());
       fpl.getScores(player);
+    });
+  },
+
+  getTransfers(player) {
+    requestOptions.url = fplUrl + 'entry/' + player.entry + '/transfers';
+    request(requestOptions, async (err, response, body) => {
+      const transferHistory = await body.history;
+      transferHistory.forEach(function (transfer) {
+        transfer.playerIn = footballers[transfer.element_in].web_name;
+        transfer.playerOut = footballers[transfer.element_out].web_name;
+        if (transfer.event === gameDetails.thisGameWeek) {
+          transfer.latest = true;
+        }
+      });
+
+      player.transferHistory = transferHistory;
+      logger.info('transfer info retrieved for ' + player.player_name + timeToLoad());
     });
   },
 
@@ -133,7 +167,8 @@ const fpl = {
       let weekScores = {};
       details.forEach(function (gameWeek) {
         weekScores[gameWeek.event] = gameWeek;
-        weekScores[gameWeek.event].netScore = weekScores[gameWeek.event].points - weekScores[gameWeek.event].event_transfers_cost;
+        weekScores[gameWeek.event].netScore =
+            weekScores[gameWeek.event].points - weekScores[gameWeek.event].event_transfers_cost;
       });
 
       player.transferDetails.totalTransfers = totalTransfers;
@@ -146,7 +181,6 @@ const fpl = {
       });
 
       fpl.getMonthScores(player);
-
     });
   },
 
@@ -231,6 +265,26 @@ const fpl = {
         }
 
         footballer.liveScore = points;
+        logger.info('Live scores retrieved for '
+            + player.player_name + ' (' + footballer.position + '/15)' + timeToLoad());
+
+        liveScoreCounter++;
+        if (liveScoreCounter === Object.keys(players).length * 15) {
+          playersSorted = [];
+          Object.keys(players).forEach(function (player) {
+            playersSorted.push(players[player]);
+          });
+
+          playersSorted.sort(function (a, b) {
+            if (a.total !== b.total) {
+              return b.total - a.total;
+            } else {
+              return a.transferDetails.totalTransfers - b.transferDetails.totalTransfers;
+            }
+          });
+
+          loading = false;
+        }
       }
     });
   },
@@ -331,24 +385,8 @@ const fpl = {
     return table;
   },
 
-  getTransfers(player) {
-    requestOptions.url = fplUrl + 'entry/' + player.entry + '/transfers';
-    request(requestOptions, async (err, response, body) => {
-      const transferHistory = await body.history;
-      transferHistory.forEach(function (transfer) {
-        transfer.playerIn = footballers[transfer.element_in].web_name;
-        transfer.playerOut = footballers[transfer.element_out].web_name;
-        if (transfer.event === gameDetails.thisGameWeek) {
-          transfer.latest = true;
-        }
-      });
-
-      player.transferHistory = transferHistory;
-      logger.info('transfer info retrieved for ' + player.player_name + timeToLoad());
-    });
-  },
-
   cup() {
+    cup = [];
     const cupWeeks = [1, 8, 15, 22, 30, 38];
     cupWeeks.forEach(function (gameWeek) {
       let matchDay = {
@@ -601,22 +639,11 @@ const fpl = {
     const scruds5 = scruds.slice(1);
     createMatches(5, 'scruds', scruds5, cupWeeks[5], true);
     sortGroup(cupTables.scruds.group);
+
+    logger.info('Cup data assembled' + timeToLoad());
   },
 
   index(request, response) {
-
-    const playersSorted = [];
-    Object.keys(players).forEach(function (player) {
-      playersSorted.push(players[player]);
-    });
-
-    playersSorted.sort(function (a, b) {
-      if (a.total !== b.total) {
-        return b.total - a.total;
-      } else {
-        return a.transferDetails.totalTransfers - b.transferDetails.totalTransfers;
-      }
-    });
     const viewData = {
       title: 'Welcome',
       players: playersSorted,
@@ -627,6 +654,7 @@ const fpl = {
       cup: cup,
       cupTables: cupTables,
     };
+
     logger.info('Rendering index');
     response.render('index', viewData);
   },

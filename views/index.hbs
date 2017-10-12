@@ -1,13 +1,36 @@
-<div class="ui grid container center aligned">
-  {{> overall-table}}
-  {{> monthly-tables}}
-</div>
-{{> live-gameweek}}
-<div class="ui grid container">
-  {{> transfers}}
-  {{> captains}}
-</div>
-<div class="ui grid container">
-  {{> cup}}
-  {{> cup-tables}}
-</div>
+{{#if loading}}
+  <div class="ui active dimmer" title="{{loading}}" id="loader">
+    <div class="ui indeterminate text loader">Loading...</div>
+  </div>
+{{else}}
+  <div class="ui stackable grid container center aligned">
+    {{> overall-table}}
+    {{> monthly-tables}}
+  </div>
+  <div class="ui stackable grid container center aligned">
+    {{> live-gameweek}}
+  </div>
+  <div class="ui stackable grid container center aligned">
+    {{> transfers}}
+    {{> captains}}
+  </div>
+  <div class="ui stackable grid container">
+    {{> cup}}
+    {{> cup-tables}}
+  </div>
+{{/if}}
+<script>
+  const loader = document.getElementById('loader');
+  function reload() {
+    location.reload();
+  }
+
+  if (loader) {
+    if (loader.title === 'true') {
+      setTimeout(reload, 1000);
+    }
+  } else {
+    setTimeout(reload, 1000 * 60 * 2);
+  }
+</script>
+
