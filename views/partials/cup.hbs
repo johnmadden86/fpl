@@ -1,7 +1,7 @@
 <div class="column eight wide">
   {{#each cup}}
     <div class="ui medium header">Gameweek {{gameWeek}}</div>
-    <table class="ui selectable compact celled table">
+    <table class="ui selectable compact table">
       {{#each events}}
         <thead>
         <tr>
@@ -11,9 +11,9 @@
         <tbody>
         {{#each fixtures}}
           <tr>
-            <td>{{team1.player_name}}</td>
-            <td>{{#if score1}}{{score1}} - {{score2}}{{else}}v{{/if}}</td>
-            <td>{{team2.player_name}}</td>
+            <td class="right aligned">{{team1.player_name}}</td>
+            <td class="center aligned">{{#if score1}}{{score1}} - {{score2}}{{else}}v{{/if}}</td>
+            <td class="left aligned">{{team2.player_name}}</td>
           </tr>
         {{/each}}
         </tbody>

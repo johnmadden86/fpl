@@ -1,5 +1,5 @@
 <div class="column eight wide">
-  <table class="ui selectable compact celled table">
+  <table class="ui selectable compact table">
     <thead>
     <tr>
       <th>Transfers</th>
@@ -8,17 +8,24 @@
     </tr>
     </thead>
     <tbody>
+
     {{#each players}}
+      <tr>
+
+        <td rowspan="{{transferDetails.transfers}}">{{player_name}}</td>
+
       {{#each transferHistory}}
         {{#if latest}}
-          <tr>
-            <td>{{../player_name}}</td>
             <td><i class="green chevron circle up icon"></i> {{playerIn}}</td>
             <td><i class="red chevron circle down icon"></i> {{playerOut}}</td>
-          </tr>
+</tr>
         {{/if}}
       {{/each}}
     {{/each}}
+
     </tbody>
   </table>
 </div>
+<script>
+  let tag = document.getElementsByClassName('player');
+</script>

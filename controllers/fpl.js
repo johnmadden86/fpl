@@ -20,7 +20,7 @@ let cup;
 let cupTables = [];
 let liveScoreCounter;
 let counter = 0;
-let loading;
+let loading = true;
 let requestOptions = {
   url: fplUrl,
   method: 'GET',
@@ -30,10 +30,10 @@ let requestOptions = {
 const fpl = {
 
   runApp() {
-    loading = true;
     fpl.getGameDetails();
     let attempt = 2;
     function run() {
+      loading = true;
       logger.info('Attempt ' + attempt);
       time = new Date();
       attempt++;
@@ -87,7 +87,6 @@ const fpl = {
         players[result.entry] = result;
         players[result.entry].liveWeekTotal = 0;
         fpl.getTeams(players[result.entry]);
-        fpl.getTransfers(players[result.entry]);
       }
 
       logger.info(results.length + ' players retrieved' + timeToLoad());
@@ -127,7 +126,13 @@ const fpl = {
         j++;
       }
 
-      player.formation = df + '-' + mf + '-' + fw;
+      player.formation = {
+        d: df,
+        m: mf,
+        f: fw,
+      };
+
+      player.subs = player.team.slice(11);
 
       const transferDetails = await {
         chip: body.active_chip,
@@ -138,24 +143,28 @@ const fpl = {
       player.team = team;
       player.transferDetails = transferDetails;
       logger.info('team details retrieved for ' + player.player_name + timeToLoad());
-      fpl.getScores(player);
+      fpl.getTransfers(player);
     });
   },
 
   getTransfers(player) {
     requestOptions.url = fplUrl + 'entry/' + player.entry + '/transfers';
     request(requestOptions, async (err, response, body) => {
+      let numberOfTransfers = 0;
       const transferHistory = await body.history;
       transferHistory.forEach(function (transfer) {
         transfer.playerIn = footballers[transfer.element_in].web_name;
         transfer.playerOut = footballers[transfer.element_out].web_name;
         if (transfer.event === gameDetails.thisGameWeek) {
           transfer.latest = true;
+          numberOfTransfers++;
         }
       });
 
+      player.transferDetails.transfers = numberOfTransfers;
       player.transferHistory = transferHistory;
       logger.info('transfer info retrieved for ' + player.player_name + timeToLoad());
+      fpl.getScores(player);
     });
   },
 
@@ -172,32 +181,52 @@ const fpl = {
       });
 
       player.transferDetails.totalTransfers = totalTransfers;
-
       player.weekScores = weekScores;
       logger.info('retrieved scores for ' + player.player_name + timeToLoad());
 
-      player.team.forEach(function (footballer) {
-        fpl.getLiveScores(player, footballer);
-      });
-
       fpl.getMonthScores(player);
+    });
+  },
+
+  getMonthScores(player) {
+    let points = 0;
+    let monthScore = {};
+    let i = 1;
+    let j = 1;
+    while (i < gameDetails.nextGameWeek) {
+      if (i >= gameDetails.months[j].start_event && i <= gameDetails.months[j].stop_event) {
+        points = 0;
+        j++;
+      }
+
+      points += player.weekScores[i].netScore;
+      monthScore[gameDetails.months[j - 1].name] = points;
+      i++;
+    }
+
+    logger.info('retrieved month scores for ' + player.player_name + timeToLoad());
+    player.monthScores = monthScore;
+    player.subsOut = [];
+    player.team.forEach(function (footballer) {
+      fpl.getLiveScores(player, footballer);
     });
   },
 
   getLiveScores(player, footballer) {
     requestOptions.url = fplUrl + 'element-summary/' + footballer.element;
     request(requestOptions, async (err, response, body) => {
-      const scoreTypes = await body.explain['0'].explain;
+      const gameData = await body.explain['0'];
+      const scoreTypes = gameData.explain;
       let points = 0;
       for (let i = 0; i < Object.keys(scoreTypes).length; i++) {
         let key = Object.keys(scoreTypes)[i];
         points += scoreTypes[key].points;
       }
 
-      if (body.explain['0'].fixture.stats.length > 0) {
+      if (gameData.fixture.stats.length > 0) {
 
-        const bpsAway = body.explain['0'].fixture.stats[9].bps.a;
-        const bpsHome = body.explain['0'].fixture.stats[9].bps.h;
+        const bpsAway = gameData.fixture.stats[9].bps.a;
+        const bpsHome = gameData.fixture.stats[9].bps.h;
         const bps = bpsAway.concat(bpsHome);
         bps.sort(function (a, b) {
           return b.value - a.value;
@@ -255,14 +284,17 @@ const fpl = {
           player.liveWeekTotal += points;
         }
 
+        if (gameData.explain.minutes.value === 0
+            && gameData.fixture.started === true) {
+          points = '-';
+          if (footballer.position <= 11) {
+            player.subsOut.push(footballer);
+          }
+        }
+
         player.weekScores[gameDetails.thisGameWeek].points = player.liveWeekTotal;
         player.weekScores[gameDetails.thisGameWeek].netScore =
             player.liveWeekTotal - player.weekScores[gameDetails.thisGameWeek].event_transfers_cost;
-
-        if (body.explain['0'].explain.minutes.value === 0
-            && body.explain['0'].fixture.started === true) {
-          points = '-';
-        }
 
         footballer.liveScore = points;
         logger.info('Live scores retrieved for '
@@ -270,51 +302,66 @@ const fpl = {
 
         liveScoreCounter++;
         if (liveScoreCounter === Object.keys(players).length * 15) {
-          playersSorted = [];
-          Object.keys(players).forEach(function (player) {
-            playersSorted.push(players[player]);
-          });
-
-          playersSorted.sort(function (a, b) {
-            if (a.total !== b.total) {
-              return b.total - a.total;
-            } else {
-              return a.transferDetails.totalTransfers - b.transferDetails.totalTransfers;
-            }
-          });
-
-          loading = false;
+          tables = [];
+          fpl.createTables();
+          fpl.overallTable();
         }
       }
     });
   },
 
-  getMonthScores(player) {
-    let points = 0;
-    let monthScore = {};
-    let i = 1;
-    let j = 1;
-    while (i < gameDetails.nextGameWeek) {
-      if (i >= gameDetails.months[j].start_event && i <= gameDetails.months[j].stop_event) {
-        points = 0;
-        j++;
-      }
+  autoSub(player) {
+    //3-4-3 //2-1-0
+    //3-5-2 //2-0-1
+    //4-3-3 //1-2-0
+    //4-4-2 //1-1-1
+    //4-5-1 //1-0-2
+    //5-2-3 //0-3-0
+    //5-3-2 //0-2-1
+    //5-4-1 //0-1-2
+    switch (player.subsOut.length) {
+      case 1:
+        switch (player.subsOut[0].playingPosition) {
+          case 1:
+            player.liveWeekTotal += player.subs[0].liveScore;
+            break;
+          case 2:
+            if (player.formation.d === 3) {
+              for (let i = 0; i < player.subs.length; i++) {
+                if (player.subs[i].playingPosition === 2) {
+                  player.liveWeekTotal += player.subs[i].liveScore;
+                }
+              }
+            } else {
+              player.liveWeekTotal += player.subs[1].liveScore;
+            }
 
-      points += player.weekScores[i].netScore;
-      monthScore[gameDetails.months[j - 1].name] = points;
-      i++;
-    }
+            break;
+          case 3:
+            player.liveWeekTotal += player.subs[1].liveScore;
+            break;
+          case 4:
+            if (player.formation.f === 1) {
+              for (let i = 0; i < player.subs.length; i++) {
+                if (player.subs[i].playingPosition === 4) {
+                  player.liveWeekTotal += player.subs[i].liveScore;
+                }
+              }
+            } else {
+              player.liveWeekTotal += player.subs[1].liveScore;
+            }
 
-    logger.info('retrieved month scores for ' + player.player_name + timeToLoad());
-
-    player.monthScores = monthScore;
-
-    counter++;
-    if (counter === Object.keys(players).length) {
-      tables = [];
-      fpl.createTables();
-      fpl.overallTable();
-      counter = 0;
+            break;
+        }
+        break;
+      case 2:
+        break;
+      case 3:
+        break;
+      case 4:
+        break;
+      default:
+        break;
     }
   },
 
@@ -325,8 +372,9 @@ const fpl = {
       const table = {
         month: gameDetails.months[i].name,
         content: fpl.createTable(gameDetails.months[i].name),
-        prize: 5 * (gameDetails.months[i].stop_event - gameDetails.months[i].start_event + 1),
       };
+
+      table.content[0].prize = 5 * (gameDetails.months[i].stop_event - gameDetails.months[i].start_event + 1);
       tables.push(table);
       if (table.month === gameDetails.currentMonth) {
         break;
@@ -364,6 +412,21 @@ const fpl = {
     overallTable = table;
     logger.info('Overall table created ' + timeToLoad());
     fpl.cup();
+
+    playersSorted = [];
+    Object.keys(players).forEach(function (player) {
+      playersSorted.push(players[player]);
+    });
+
+    playersSorted.sort(function (a, b) {
+      if (a.total !== b.total) {
+        return b.total - a.total;
+      } else {
+        return a.transferDetails.totalTransfers - b.transferDetails.totalTransfers;
+      }
+    });
+
+    loading = false;
   },
 
   createTable(month) {
@@ -449,13 +512,11 @@ const fpl = {
       winner.tableEntry.for += winner.weekScores[gameWeek].netScore;
       winner.tableEntry.against += loser.weekScores[gameWeek].netScore;
       winner.tableEntry.points += 3;
-      logger.debug(winner.player_name + ' ' + winner.tableEntry.for);
 
       loser.tableEntry.played++;
       loser.tableEntry.lost++;
       loser.tableEntry.for += loser.weekScores[gameWeek].netScore;
       loser.tableEntry.against += winner.weekScores[gameWeek].netScore;
-      logger.debug(loser.player_name + ' ' + loser.tableEntry.for);
     }
 
     function addDrawPoints(team1, team2, gameWeek) {

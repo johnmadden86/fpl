@@ -1,19 +1,18 @@
 <div class="four wide column">
-  <table class="ui selectable compact celled table">
+  <table class="ui selectable compact single line table">
     <thead>
     <tr>
-      <th>Overall</th>
-      <th>€240</th>
-      <th>€80</th>
+      <th colspan="3">Overall</th>
     </tr>
     </thead>
+    <tbody>
     {{#each overallTable}}
-      <tbody>
       <tr>
-        <td colspan="2">{{name}}</td>
+        <td>{{#if prize}} <div class="ui ribbon label">{{prize}}</div>{{/if}}</td>
+        <td>{{name}}</td>
         <td>{{score}}</td>
       </tr>
-      </tbody>
     {{/each}}
+    </tbody>
   </table>
 </div>

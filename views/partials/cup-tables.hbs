@@ -4,26 +4,26 @@
       <thead>
       <tr>
         <th>{{name}}</th>
-        <th>P</th>
-        <th>W</th>
-        <th>D</th>
-        <th>L</th>
-        <th>F</th>
-        <th>A</th>
-        <th>Pts</th>
+        <th class="center aligned">P</th>
+        <th class="center aligned">W</th>
+        <th class="center aligned">D</th>
+        <th class="center aligned">L</th>
+        <th class="center aligned">F</th>
+        <th class="center aligned">A</th>
+        <th class="center aligned">Pts</th>
       </tr>
       </thead>
       <tbody>
       {{#each group}}
         <tr>
-          <td>{{player_name}}</td>
-          <td>{{tableEntry.played}}</td>
-          <td>{{tableEntry.won}}</td>
-          <td>{{tableEntry.drawn}}</td>
-          <td>{{tableEntry.lost}}</td>
-          <td>{{tableEntry.for}}</td>
-          <td>{{tableEntry.against}}</td>
-          <td>{{tableEntry.points}}</td>
+          <td class="right aligned">{{player_name}}</td>
+          <td class="center aligned">{{tableEntry.played}}</td>
+          <td class="center aligned">{{tableEntry.won}}</td>
+          <td class="center aligned">{{tableEntry.drawn}}</td>
+          <td class="center aligned">{{tableEntry.lost}}</td>
+          <td class="center aligned">{{tableEntry.for}}</td>
+          <td class="center aligned">{{tableEntry.against}}</td>
+          <td class="center aligned">{{tableEntry.points}}</td>
         </tr>
       {{/each}}
       </tbody>

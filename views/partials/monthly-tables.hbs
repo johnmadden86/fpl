@@ -1,20 +1,20 @@
 {{#each tables}}
   <div class="four wide column">
-    <table class="ui selectable compact celled table">
+    <table class="ui selectable compact single line table">
       <thead>
       <tr>
-        <th>{{month}}</th>
-        <th>€{{prize}}</th>
+        <th colspan="3">{{month}}</th>
       </tr>
       </thead>
+      <tbody>
       {{#each content}}
-        <tbody>
         <tr>
+          <td>{{#if prize}} <div class="ui ribbon label">€{{prize}}</div>{{/if}}</td>
           <td>{{name}}</td>
           <td>{{score}}</td>
         </tr>
-        </tbody>
       {{/each}}
+      </tbody>
     </table>
   </div>
 {{/each}}

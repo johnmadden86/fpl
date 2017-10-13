@@ -1,13 +1,13 @@
   {{#each players}}
     <div class="column four wide">
-      <table class="ui selectable compact celled table">
+      <table class="ui selectable compact table">
         <thead>
         <tr>
           <th colspan="2">
             {{player_name}}{{#if transferDetails.chip}} ({{transferDetails.chip}}){{/if}}<br>
             <span class="ui sub header">
             Transfers: {{transferDetails.transfers}} &nbsp;{{blankIfZero transferDetails.pointsHit}}
-              <br>{{formation}}
+              <br>{{formation.d}}-{{formation.m}}-{{formation.f}}
             </span>
           </th>
           <th>{{liveWeekTotal}}</th>
