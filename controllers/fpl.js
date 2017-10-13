@@ -132,8 +132,6 @@ const fpl = {
         f: fw,
       };
 
-      player.subs = player.team.slice(11);
-
       const transferDetails = await {
         chip: body.active_chip,
         transfers: body.entry_history.event_transfers,
@@ -141,6 +139,7 @@ const fpl = {
       };
 
       player.team = team;
+      player.subs = player.team.slice(11);
       player.transferDetails = transferDetails;
       logger.info('team details retrieved for ' + player.player_name + timeToLoad());
       fpl.getTransfers(player);
