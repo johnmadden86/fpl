@@ -5,9 +5,7 @@ const fplUrl = 'https://fantasy.premierleague.com/drf/';
 const Handlebars = require('../utils/handlebar-helper');
 let gameDetails;
 let footballers = {};
-let live = {};
 const players = {};
-let totalRequests = 1 + 1 + 3 * 13 + 13 * 15;
 let playersSorted;
 let overallTable;
 let tables = [];
@@ -74,7 +72,6 @@ const fpl = {
 
       body.elements.forEach(function (element) {
         footballers[element.id] = element;
-        footballers[element.id].liveScore = element.event_points;
       });
 
       logger.info('Got game details' + timeToLoad());
@@ -86,7 +83,22 @@ const fpl = {
   live() {
     requestOptions.url = fplUrl + 'event/' + gameDetails.thisGameWeek + '/live';
     request(requestOptions, async (error, response, body) => {
+      const elements = await body.elements;
       const fixtures = await body.fixtures;
+
+      Object.keys(footballers).forEach(function (footballer) {
+        let fixtureId = elements[footballer].explain[0][1];
+        for (let i = 0; i < fixtures.length; i++) {
+          if (fixtures[i].id === fixtureId) {
+            footballers[footballer].fixture = fixtures[i];
+            if (footballers[footballer].fixture.started) {
+              footballers[footballer].liveScore = elements[footballer].stats.total_points;
+              footballers[footballer].didNotPlay = elements[footballer].stats.minutes === 0;
+            }
+          }
+        }
+      });
+
       fixtures.forEach(function (fixture) {
         if (fixture.stats[8]) {
           if (fixture.stats[8].bonus.a.length + fixture.stats[8].bonus.h.length === 0) {
@@ -191,7 +203,10 @@ const fpl = {
       for (let i = 0; i < picks.length; i++) {
         picks[i].name = footballers[picks[i].element].web_name;
         picks[i].playingPosition = footballers[picks[i].element].element_type;
-        picks[i].liveScore = footballers[picks[i].element].liveScore;
+        if (footballers[picks[i].element].liveScore) {
+          picks[i].liveScore = footballers[picks[i].element].liveScore;
+        }
+
         team.push(picks[i]);
         if (picks[i].is_captain) {
           player.captain = picks[i].name;
@@ -305,21 +320,21 @@ const fpl = {
 
     logger.info('retrieved month scores for ' + player.player_name + timeToLoad());
     player.monthScores = monthScore;
-
-
   },
 
   getLiveScores(player, footballer) {
-    footballer.liveScore *= footballer.multiplier;
-    if (footballer.position <= 11) {
-      player.liveWeekTotal += footballer.liveScore;
+    if (footballer.liveScore) {
+      footballer.liveScore *= footballer.multiplier;
+      if (footballer.position <= 11) {
+        player.liveWeekTotal += footballer.liveScore;
+      }
     }
 
+    if (footballer.didNotPlay) {
+      footballer.liveScore = '-';
 
-    //if (gameData.explain.minutes.value === 0 && gameData.fixture.started === true) {
-      //footballer.liveScore = '-';
       //fpl.autoSub(player, footballer);
-    //}
+    }
 
     player.weekScores[gameDetails.thisGameWeek].points = player.liveWeekTotal;
     player.weekScores[gameDetails.thisGameWeek].netScore =
@@ -406,7 +421,7 @@ const fpl = {
 
     overallTable = table;
     logger.info('Overall table created ' + timeToLoad());
-    //fpl.cup();
+    fpl.cup();
 
     playersSorted = [];
     Object.keys(players).forEach(function (player) {
@@ -534,7 +549,7 @@ const fpl = {
       if (gameWeek <= gameDetails.thisGameWeek) {
         this.score1 = team1.weekScores[gameWeek].netScore;
         this.score2 = team2.weekScores[gameWeek].netScore;
-        if (gameDetails.thisGameWeekFinished) {
+        if (gameWeek < gameDetails.thisGameWeek || gameDetails.thisGameWeekFinished) {
           getWinner(this, gameWeek, league);
         }
       }
@@ -587,7 +602,6 @@ const fpl = {
       players[player].tableEntry = new TableEntry();
     });
 
-
     const groupA = [//1234,1324,1423
       cup[0].events.qualifiers.fixtures[4].winner,//cn
       cup[0].events.qualifiers.fixtures[3].winner,//pok
@@ -630,7 +644,6 @@ const fpl = {
     }
 
     createMatches(1, 'groupA', groupA, cupWeeks[1], true);
-    logger.debug('ok to here');
     createMatches(1, 'groupB', groupB, cupWeeks[1], true);
     const scruds1 = scruds.slice(0, 4);
     createMatches(1, 'scruds', scruds1, cupWeeks[1], true);
