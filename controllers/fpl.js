@@ -5,7 +5,9 @@ const fplUrl = 'https://fantasy.premierleague.com/drf/';
 const Handlebars = require('../utils/handlebar-helper');
 let gameDetails;
 let footballers = {};
+let live = {};
 const players = {};
+let totalRequests = 1 + 1 + 3 * 13 + 13 * 15;
 let playersSorted;
 let overallTable;
 let tables = [];
@@ -40,7 +42,7 @@ const fpl = {
       fpl.getGameDetails();
     }
 
-    setInterval(run, 1000 * 60 * 2);
+    setInterval(run, 1000 * 60 * 60);
   },
 
   getGameDetails() {
@@ -71,12 +73,100 @@ const fpl = {
       gameDetails.currentMonth = currentMonth;
 
       body.elements.forEach(function (element) {
-        footballers[element.id] = element;//element_type=position
+        footballers[element.id] = element;
+        footballers[element.id].liveScore = element.event_points;
       });
 
       logger.info('Got game details' + timeToLoad());
-      fpl.getPlayers(6085);
+
+      fpl.live();
     });
+  },
+
+  live() {
+    requestOptions.url = fplUrl + 'event/' + gameDetails.thisGameWeek + '/live';
+    request(requestOptions, async (error, response, body) => {
+      const fixtures = await body.fixtures;
+      fixtures.forEach(function (fixture) {
+        if (fixture.stats[8]) {
+          if (fixture.stats[8].bonus.a.length + fixture.stats[8].bonus.h.length === 0) {
+            fpl.getBonus(fixture);
+            for (let i = 0; i < fixture.bonus.three.length; i++) {
+              fixture.bonus.three.forEach(function (element) {
+                footballers[element].liveScore += 3;
+              });
+            }
+
+            for (let i = 0; i < fixture.bonus.two.length; i++) {
+              fixture.bonus.two.forEach(function (element) {
+                footballers[element].liveScore += 2;
+              });
+            }
+
+            for (let i = 0; i < fixture.bonus.one.length; i++) {
+              fixture.bonus.one.forEach(function (element) {
+                footballers[element].liveScore += 1;
+              });
+            }
+          }
+        }
+      });
+    });
+
+    fpl.getPlayers(6085);
+  },
+
+  getBonus(fixture) {
+    const three = [];
+    const two = [];
+    const one = [];
+    if (fixture.stats.length > 0) {
+      const bpsAway = fixture.stats[9].bps.a;
+      const bpsHome = fixture.stats[9].bps.h;
+      const bps = bpsAway.concat(bpsHome);
+      bps.sort(function (a, b) {
+        return b.value - a.value;
+      });
+
+      let threeBonusCount = 0;
+      let twoBonusCount = 0;
+      let oneBonusCount = 0;
+      let i = 0;
+      while (bps[0].value === bps[i].value) {
+        threeBonusCount++;
+        i++;
+      }
+
+      while (threeBonusCount === 1 && bps[threeBonusCount].value === bps[i].value) {
+        twoBonusCount++;
+        i++;
+      }
+
+      while (threeBonusCount + twoBonusCount === 2 && bps[threeBonusCount + twoBonusCount].value === bps[i].value) {
+        oneBonusCount++;
+        i++;
+      }
+
+      let j = 0;
+      while (j < threeBonusCount) {
+        three.push(bps[j].element);
+        j++;
+        while (j < threeBonusCount + twoBonusCount) {
+          two.push(bps[j].element);
+          j++;
+          while (j < threeBonusCount + twoBonusCount + oneBonusCount) {
+            one.push(bps[j].element);
+            j++;
+          }
+        }
+      }
+    }
+
+    fixture.bonus = {
+      three: three,
+      two: two,
+      one: one,
+    };
   },
 
   getPlayers(leagueId) {
@@ -101,36 +191,14 @@ const fpl = {
       for (let i = 0; i < picks.length; i++) {
         picks[i].name = footballers[picks[i].element].web_name;
         picks[i].playingPosition = footballers[picks[i].element].element_type;
+        picks[i].liveScore = footballers[picks[i].element].liveScore;
         team.push(picks[i]);
         if (picks[i].is_captain) {
           player.captain = picks[i].name;
         }
       }
 
-      let df = 0;
-      let mf = 0;
-      let fw = 0;
-      let j = 1;
-      while (team[j].playingPosition === 2) {
-        df++;
-        j++;
-      }
-
-      while (team[j].playingPosition === 3) {
-        mf++;
-        j++;
-      }
-
-      while (team[j].playingPosition === 4) {
-        fw++;
-        j++;
-      }
-
-      player.formation = {
-        d: df,
-        m: mf,
-        f: fw,
-      };
+      player.formation = fpl.getFormation(team);
 
       const transferDetails = await {
         chip: body.active_chip,
@@ -139,11 +207,42 @@ const fpl = {
       };
 
       player.team = team;
-      player.subs = player.team.slice(11);
       player.transferDetails = transferDetails;
       logger.info('team details retrieved for ' + player.player_name + timeToLoad());
       fpl.getTransfers(player);
     });
+  },
+
+  getFormation(team) {
+    let df = 0;
+    let mf = 0;
+    let fw = 0;
+    let j = 1;
+    while (team[j].playingPosition === 2) {
+      df++;
+      j++;
+    }
+
+    while (team[j].playingPosition === 3) {
+      mf++;
+      j++;
+    }
+
+    while (team[j].playingPosition === 4) {
+      fw++;
+      j++;
+    }
+
+    return {
+      d: df,
+      m: mf,
+      f: fw,
+    };
+  },
+
+  validFormation(team) {
+    const formation = fpl.getFormation(team);
+    return formation.d >= 3 && formation.f >= 1;
   },
 
   getTransfers(player) {
@@ -182,8 +281,9 @@ const fpl = {
       player.transferDetails.totalTransfers = totalTransfers;
       player.weekScores = weekScores;
       logger.info('retrieved scores for ' + player.player_name + timeToLoad());
-
-      fpl.getMonthScores(player);
+      for (let i = 0; i < player.team.length; i++) {
+        fpl.getLiveScores(player, player.team[i]);
+      }
     });
   },
 
@@ -205,161 +305,57 @@ const fpl = {
 
     logger.info('retrieved month scores for ' + player.player_name + timeToLoad());
     player.monthScores = monthScore;
-    player.subsOut = [];
-    player.team.forEach(function (footballer) {
-      fpl.getLiveScores(player, footballer);
-    });
+
+
   },
 
   getLiveScores(player, footballer) {
-    requestOptions.url = fplUrl + 'element-summary/' + footballer.element;
-    request(requestOptions, async (err, response, body) => {
-      const gameData = await body.explain['0'];
-      const scoreTypes = gameData.explain;
-      let points = 0;
-      for (let i = 0; i < Object.keys(scoreTypes).length; i++) {
-        let key = Object.keys(scoreTypes)[i];
-        points += scoreTypes[key].points;
-      }
+    footballer.liveScore *= footballer.multiplier;
+    if (footballer.position <= 11) {
+      player.liveWeekTotal += footballer.liveScore;
+    }
 
-      if (gameData.fixture.stats.length > 0) {
 
-        const bpsAway = gameData.fixture.stats[9].bps.a;
-        const bpsHome = gameData.fixture.stats[9].bps.h;
-        const bps = bpsAway.concat(bpsHome);
-        bps.sort(function (a, b) {
-          return b.value - a.value;
-        });
+    //if (gameData.explain.minutes.value === 0 && gameData.fixture.started === true) {
+      //footballer.liveScore = '-';
+      //fpl.autoSub(player, footballer);
+    //}
 
-        let threeBonusCount = 0;
-        let twoBonusCount = 0;
-        let oneBonusCount = 0;
-        let i = 0;
-        while (bps[0].value === bps[i].value) {
-          threeBonusCount++;
-          i++;
-        }
+    player.weekScores[gameDetails.thisGameWeek].points = player.liveWeekTotal;
+    player.weekScores[gameDetails.thisGameWeek].netScore =
+        player.liveWeekTotal - player.weekScores[gameDetails.thisGameWeek].event_transfers_cost;
 
-        while (threeBonusCount === 1 && bps[threeBonusCount].value === bps[i].value) {
-          twoBonusCount++;
-          i++;
-        }
+    logger.info('Live scores retrieved for '
+        + player.player_name + ' (' + footballer.position + '/15)' + timeToLoad());
 
-        while (threeBonusCount + twoBonusCount === 2 && bps[threeBonusCount + twoBonusCount].value === bps[i].value) {
-          oneBonusCount++;
-          i++;
-        }
-
-        let bonus = 0;
-        let j = 0;
-        while (j < threeBonusCount) {
-          if (bps[j].element === footballer.element) {
-            bonus = 3;
-          }
-
-          j++;
-          while (j < threeBonusCount + twoBonusCount) {
-            if (bps[j].element === footballer.element) {
-              bonus = 2;
-            }
-
-            j++;
-            while (j < threeBonusCount + twoBonusCount + oneBonusCount) {
-              if (bps[j].element === footballer.element) {
-                bonus = 1;
-              }
-
-              j++;
-            }
-          }
-        }
-
-        if (!scoreTypes.bonus) {
-          points += bonus;
-        }
-
-        points *= footballer.multiplier;
-        if (footballer.position <= 11) {
-          player.liveWeekTotal += points;
-        }
-
-        if (gameData.explain.minutes.value === 0
-            && gameData.fixture.started === true) {
-          points = '-';
-          if (footballer.position <= 11) {
-            player.subsOut.push(footballer);
-          }
-        }
-
-        player.weekScores[gameDetails.thisGameWeek].points = player.liveWeekTotal;
-        player.weekScores[gameDetails.thisGameWeek].netScore =
-            player.liveWeekTotal - player.weekScores[gameDetails.thisGameWeek].event_transfers_cost;
-
-        footballer.liveScore = points;
-        logger.info('Live scores retrieved for '
-            + player.player_name + ' (' + footballer.position + '/15)' + timeToLoad());
-
-        liveScoreCounter++;
-        if (liveScoreCounter === Object.keys(players).length * 15) {
-          tables = [];
-          fpl.createTables();
-          fpl.overallTable();
-        }
-      }
-    });
+    fpl.getMonthScores(player);
+    liveScoreCounter++;
+    if (liveScoreCounter === Object.keys(players).length * 15) {
+      tables = [];
+      fpl.createTables();
+      fpl.overallTable();
+    }
   },
 
-  autoSub(player) {
-    //3-4-3 //2-1-0
-    //3-5-2 //2-0-1
-    //4-3-3 //1-2-0
-    //4-4-2 //1-1-1
-    //4-5-1 //1-0-2
-    //5-2-3 //0-3-0
-    //5-3-2 //0-2-1
-    //5-4-1 //0-1-2
-    switch (player.subsOut.length) {
+  autoSub(player, footballer) {
+    Array.prototype.swap = function (a, b) {
+      let c = this[a];
+      this[a] = this[b];
+      this[b] = c;
+      return this;
+    };
+
+    let index = player.team.indexOf(footballer);
+    switch (footballer.playingPosition) {
       case 1:
-        switch (player.subsOut[0].playingPosition) {
-          case 1:
-            player.liveWeekTotal += player.subs[0].liveScore;
-            break;
-          case 2:
-            if (player.formation.d === 3) {
-              for (let i = 0; i < player.subs.length; i++) {
-                if (player.subs[i].playingPosition === 2) {
-                  player.liveWeekTotal += player.subs[i].liveScore;
-                }
-              }
-            } else {
-              player.liveWeekTotal += player.subs[1].liveScore;
-            }
-
-            break;
-          case 3:
-            player.liveWeekTotal += player.subs[1].liveScore;
-            break;
-          case 4:
-            if (player.formation.f === 1) {
-              for (let i = 0; i < player.subs.length; i++) {
-                if (player.subs[i].playingPosition === 4) {
-                  player.liveWeekTotal += player.subs[i].liveScore;
-                }
-              }
-            } else {
-              player.liveWeekTotal += player.subs[1].liveScore;
-            }
-
-            break;
-        }
-        break;
-      case 2:
-        break;
-      case 3:
-        break;
-      case 4:
+        player.team.swap(index, 11);
         break;
       default:
+        let i = 12;
+        do {
+          player.team.swap(index, i);
+          i++;
+        } while (!fpl.validFormation(player.team) && player.team[i - 1].liveScore !== '-');
         break;
     }
   },
@@ -410,7 +406,7 @@ const fpl = {
 
     overallTable = table;
     logger.info('Overall table created ' + timeToLoad());
-    fpl.cup();
+    //fpl.cup();
 
     playersSorted = [];
     Object.keys(players).forEach(function (player) {
@@ -571,6 +567,7 @@ const fpl = {
     ];
     createMatches(0, 'qualifiers', qualifiers, cupWeeks[0], false);
     const bye = players[1971796];
+    logger.info('Matchday 1 created');
 
     function TableEntry() {
       this.played = 0;
@@ -589,6 +586,7 @@ const fpl = {
     Object.keys(players).forEach(function (player) {
       players[player].tableEntry = new TableEntry();
     });
+
 
     const groupA = [//1234,1324,1423
       cup[0].events.qualifiers.fixtures[4].winner,//cn
@@ -632,6 +630,7 @@ const fpl = {
     }
 
     createMatches(1, 'groupA', groupA, cupWeeks[1], true);
+    logger.debug('ok to here');
     createMatches(1, 'groupB', groupB, cupWeeks[1], true);
     const scruds1 = scruds.slice(0, 4);
     createMatches(1, 'scruds', scruds1, cupWeeks[1], true);
@@ -715,7 +714,7 @@ const fpl = {
       cupTables: cupTables,
     };
 
-    logger.info('Rendering index');
+    //logger.info('Rendering index');
     response.render('index', viewData);
   },
 
