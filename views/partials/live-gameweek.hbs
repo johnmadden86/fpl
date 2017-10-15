@@ -1,27 +1,32 @@
-  {{#each players}}
-    <div class="column four wide">
-      <table class="ui selectable compact table">
-        <thead>
-        <tr>
-          <th colspan="2">
-            {{player_name}}{{#if transferDetails.chip}} ({{transferDetails.chip}}){{/if}}<br>
-            <span class="ui sub header">
+{{#each players}}
+  <div class="column four wide">
+    <table class="ui selectable compact table">
+      <thead>
+      <tr>
+        <th colspan="2">
+          {{player_name}}{{#if transferDetails.chip}} ({{transferDetails.chip}}){{/if}}<br>
+          <span class="ui sub header">
             Transfers: {{transferDetails.transfers}} &nbsp;{{blankIfZero transferDetails.pointsHit}}
-              <br>{{formation.d}}-{{formation.m}}-{{formation.f}}
+            <br>{{formation.d}}-{{formation.m}}-{{formation.f}}
             </span>
-          </th>
-          <th>{{liveWeekTotal}}</th>
+        </th>
+        <th>{{liveWeekTotal}}</th>
+      </tr>
+      </thead>
+      <tbody>
+      {{#each team}}
+        <tr>
+          <td>{{numberToPosition playingPosition}}</td>
+          <td>{{name}}
+            {{#if is_captain}}  (c){{/if}}
+            {{#if is_vice_captain}}  (v){{/if}}
+            {{#if subOut}}<i class="red chevron circle down icon"></i>{{/if}}
+            {{#if subIn}}<i class="green chevron circle up icon"></i>{{/if}}
+          </td>
+          <td>{{liveScore}}</td>
         </tr>
-        </thead>
-        <tbody>
-        {{#each team}}
-          <tr>
-            <td>{{numberToPosition playingPosition}}</td>
-            <td>{{name}}{{#if is_captain}}  (c){{/if}}{{#if is_vice_captain}}  (v){{/if}}</td>
-            <td>{{liveScore}}</td>
-          </tr>
-        {{/each}}
-        </tbody>
-      </table>
-    </div>
-  {{/each}}
+      {{/each}}
+      </tbody>
+    </table>
+  </div>
+{{/each}}

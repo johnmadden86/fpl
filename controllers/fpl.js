@@ -40,7 +40,7 @@ const fpl = {
       fpl.getGameDetails();
     }
 
-    setInterval(run, 1000 * 60 * 60);
+    setInterval(run, 1000 * 60 * 2);
   },
 
   getGameDetails() {
@@ -322,12 +322,6 @@ const fpl = {
   },
 
   getLiveScores(player, footballer) {
-    if (footballer.liveScore) {
-      footballer.liveScore *= footballer.multiplier;
-      if (footballer.position <= 11) {
-        player.liveWeekTotal += footballer.liveScore;
-      }
-    }
 
     Array.prototype.swap = function (a, b) {
       let c = this[a];
@@ -336,9 +330,18 @@ const fpl = {
       return this;
     };
 
+    if (footballer.liveScore) {
+      footballer.liveScore *= footballer.multiplier;
+      if (player.team.indexOf(footballer) < 11) {
+        player.liveWeekTotal += footballer.liveScore;
+      }
+    }
+
+    const gkSub = player.team[11];
+    const outfieldSubs = player.team.slice(12);
+
     if (footballer.didNotPlay) {
       footballer.liveScore = '-';
-      //player.team.swap(player.team.indexOf(footballer), 12);
     }
 
     //logger.debug(player.team.indexOf(footballer));
