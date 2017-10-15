@@ -203,9 +203,8 @@ const fpl = {
       for (let i = 0; i < picks.length; i++) {
         picks[i].name = footballers[picks[i].element].web_name;
         picks[i].playingPosition = footballers[picks[i].element].element_type;
-        if (footballers[picks[i].element].liveScore) {
-          picks[i].liveScore = footballers[picks[i].element].liveScore;
-        }
+        picks[i].liveScore = footballers[picks[i].element].liveScore;
+        picks[i].didNotPlay = footballers[picks[i].element].didNotPlay;
 
         team.push(picks[i]);
         if (picks[i].is_captain) {
@@ -330,11 +329,23 @@ const fpl = {
       }
     }
 
+    Array.prototype.swap = function (a, b) {
+      let c = this[a];
+      this[a] = this[b];
+      this[b] = c;
+      return this;
+    };
+
     if (footballer.didNotPlay) {
       footballer.liveScore = '-';
-
-      //fpl.autoSub(player, footballer);
+      //player.team.swap(player.team.indexOf(footballer), 12);
     }
+
+    //logger.debug(player.team.indexOf(footballer));
+    //logger.debug(footballer.playingPosition);
+    //logger.debug(fpl.validFormation(player.team));
+    //logger.debug(fpl.getFormation(player.team));
+    //fpl.autoSub(player, footballer);
 
     player.weekScores[gameDetails.thisGameWeek].points = player.liveWeekTotal;
     player.weekScores[gameDetails.thisGameWeek].netScore =
@@ -349,29 +360,6 @@ const fpl = {
       tables = [];
       fpl.createTables();
       fpl.overallTable();
-    }
-  },
-
-  autoSub(player, footballer) {
-    Array.prototype.swap = function (a, b) {
-      let c = this[a];
-      this[a] = this[b];
-      this[b] = c;
-      return this;
-    };
-
-    let index = player.team.indexOf(footballer);
-    switch (footballer.playingPosition) {
-      case 1:
-        player.team.swap(index, 11);
-        break;
-      default:
-        let i = 12;
-        do {
-          player.team.swap(index, i);
-          i++;
-        } while (!fpl.validFormation(player.team) && player.team[i - 1].liveScore !== '-');
-        break;
     }
   },
 
