@@ -228,10 +228,16 @@ const fpl = {
   },
 
   getFormation(team) {
+    let gk = 0;
     let df = 0;
     let mf = 0;
     let fw = 0;
-    let j = 1;
+    let j = 0;
+    while (team[j].playingPosition === 1) {
+      gk++;
+      j++;
+    }
+
     while (team[j].playingPosition === 2) {
       df++;
       j++;
@@ -248,15 +254,11 @@ const fpl = {
     }
 
     return {
+      g: gk,
       d: df,
       m: mf,
       f: fw,
     };
-  },
-
-  validFormation(team) {
-    const formation = fpl.getFormation(team);
-    return formation.d >= 3 && formation.f >= 1;
   },
 
   getTransfers(player) {
@@ -295,6 +297,7 @@ const fpl = {
       player.transferDetails.totalTransfers = totalTransfers;
       player.weekScores = weekScores;
       logger.info('retrieved scores for ' + player.player_name + timeToLoad());
+      player.subsOut = [];
       for (let i = 0; i < player.team.length; i++) {
         fpl.getLiveScores(player, player.team[i]);
       }
@@ -323,6 +326,48 @@ const fpl = {
 
   getLiveScores(player, footballer) {
 
+    let formation = fpl.getFormation(player.team);
+
+    function validFormation() {
+      const eleven = formation.g + formation.d + formation.m + formation.f === 11;
+      const positions = formation.g === 1 && formation.d >= 3 && formation.f >= 1;
+      return eleven && positions;
+    }
+
+    function checkSub(footballerOut, footballerIn) {
+      switch (footballerOut.playingPosition) {
+        case 1:
+          formation.g--;
+          break;
+        case 2:
+          formation.d--;
+          break;
+        case 3:
+          formation.m--;
+          break;
+        case 4:
+          formation.f--;
+          break;
+      }
+
+      switch (footballerIn.playingPosition) {
+        case 1:
+          formation.g++;
+          break;
+        case 2:
+          formation.d++;
+          break;
+        case 3:
+          formation.m++;
+          break;
+        case 4:
+          formation.f++;
+          break;
+      }
+
+      return validFormation();
+    }
+
     Array.prototype.swap = function (a, b) {
       let c = this[a];
       this[a] = this[b];
@@ -337,18 +382,24 @@ const fpl = {
       }
     }
 
-    const gkSub = player.team[11];
-    const outfieldSubs = player.team.slice(12);
-
     if (footballer.didNotPlay) {
+      footballer.didNotPlay = true;
       footballer.liveScore = '-';
+      if (player.team.indexOf(footballer) < 11) {
+        footballer.subOut = true;
+        player.subsOut.push(footballer);
+      }
     }
 
-    //logger.debug(player.team.indexOf(footballer));
-    //logger.debug(footballer.playingPosition);
-    //logger.debug(fpl.validFormation(player.team));
-    //logger.debug(fpl.getFormation(player.team));
-    //fpl.autoSub(player, footballer);
+    if (player.subsOut.length > 0 && player.team.indexOf(footballer) > 10  && footballer.didNotPlay === false) {
+      for (let i = 0; i < player.subsOut.length; i++) {
+        if (checkSub(player.subsOut[i], footballer)) {
+          footballer.subIn = true;
+          player.liveWeekTotal += footballer.liveScore;
+          player.subsOut.splice(i, 1);
+        }
+      }
+    }
 
     player.weekScores[gameDetails.thisGameWeek].points = player.liveWeekTotal;
     player.weekScores[gameDetails.thisGameWeek].netScore =
@@ -426,8 +477,6 @@ const fpl = {
         return a.transferDetails.totalTransfers - b.transferDetails.totalTransfers;
       }
     });
-
-    loading = false;
   },
 
   createTable(month) {
@@ -704,6 +753,7 @@ const fpl = {
     sortGroup(cupTables.scruds.group);
 
     logger.info('Cup data assembled' + timeToLoad());
+    loading = false;
   },
 
   index(request, response) {
