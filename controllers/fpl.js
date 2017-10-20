@@ -205,11 +205,14 @@ const fpl = {
         picks[i].playingPosition = footballers[picks[i].element].element_type;
         picks[i].liveScore = footballers[picks[i].element].liveScore;
         picks[i].didNotPlay = footballers[picks[i].element].didNotPlay;
-
-        team.push(picks[i]);
         if (picks[i].is_captain) {
           player.captain = picks[i].name;
+          if (picks[i].didNotPlay) {
+            player.useViceCaptain = true;
+          }
         }
+
+        team.push(picks[i]);
       }
 
       player.formation = fpl.getFormation(team);
@@ -368,35 +371,37 @@ const fpl = {
       return validFormation();
     }
 
-    Array.prototype.swap = function (a, b) {
-      let c = this[a];
-      this[a] = this[b];
-      this[b] = c;
-      return this;
-    };
+    if (player.useViceCaptain && footballer.is_vice_captain) {
+      footballer.multiplier = 2;
+      if (player.transferDetails.chip === '3xc') {
+        footballer.multiplier = 3;
+      }
+    }
 
     if (footballer.liveScore) {
       footballer.liveScore *= footballer.multiplier;
-      if (player.team.indexOf(footballer) < 11) {
+      if (player.team.indexOf(footballer) < 11 || player.transferDetails.chip === 'bboost') {
         player.liveWeekTotal += footballer.liveScore;
       }
     }
 
-    if (footballer.didNotPlay) {
-      footballer.didNotPlay = true;
-      footballer.liveScore = '-';
-      if (player.team.indexOf(footballer) < 11) {
-        footballer.subOut = true;
-        player.subsOut.push(footballer);
+    if (player.transferDetails.chip !== 'bboost') {
+      if (footballer.didNotPlay) {
+        footballer.didNotPlay = true;
+        footballer.liveScore = '-';
+        if (player.team.indexOf(footballer) < 11) {
+          footballer.subOut = true;
+          player.subsOut.push(footballer);
+        }
       }
-    }
 
-    if (player.subsOut.length > 0 && player.team.indexOf(footballer) > 10  && footballer.didNotPlay === false) {
-      for (let i = 0; i < player.subsOut.length; i++) {
-        if (checkSub(player.subsOut[i], footballer)) {
-          footballer.subIn = true;
-          player.liveWeekTotal += footballer.liveScore;
-          player.subsOut.splice(i, 1);
+      if (player.subsOut.length > 0 && player.team.indexOf(footballer) > 10 && footballer.didNotPlay === false) {
+        for (let i = 0; i < player.subsOut.length; i++) {
+          if (checkSub(player.subsOut[i], footballer)) {
+            footballer.subIn = true;
+            player.liveWeekTotal += footballer.liveScore;
+            player.subsOut.splice(i, 1);
+          }
         }
       }
     }
@@ -758,7 +763,7 @@ const fpl = {
 
   index(request, response) {
     const viewData = {
-      title: 'Welcome',
+      title: 'Fantasy Football',
       players: playersSorted,
       gameDetails: gameDetails,
       tables: tables,

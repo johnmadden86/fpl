@@ -14,4 +14,21 @@ Handlebars.registerHelper('numberToPosition', function (number) {
   return positions[number - 1];
 });
 
+Handlebars.registerHelper('readableChip', function (chip) {
+  switch (chip) {
+    case 'wildcard':
+      return 'Wildcard';
+      break;
+    case 'freehit':
+      return 'Free Hit';
+      break;
+    case '3xc':
+      return 'Triple Captain';
+      break;
+    case 'bboost':
+      return 'Bench Boost';
+      break;
+  }
+});
+
 module.exports = Handlebars;
