@@ -70,8 +70,28 @@ const fpl = {
 
       gameDetails.currentMonth = currentMonth;
 
+      const sortedFootballers = [];
       body.elements.forEach(function (element) {
+        if (element.minutes === 0) {
+          element.ct = 0;
+        } else {
+          element.games = Math.round(element.total_points / Number(element.points_per_game));
+          element.ct =  100 * (Number(element.creativity) + Number(element.threat)) / element.minutes;
+        }
+
+        sortedFootballers.push(element);
         footballers[element.id] = element;
+      });
+
+      sortedFootballers.sort(function (a, b) {
+        return b.ct - a.ct;
+      });
+
+      sortedFootballers.forEach(function (footballer) {
+        if (footballer.element_type === 4 && footballer.minutes > 300) {
+          //logger.debug(footballer.web_name + ' ' + Math.round(footballer.ct) + ' ' + footballer.games);
+
+        }
       });
 
       logger.info('Got game details' + timeToLoad());
@@ -200,6 +220,7 @@ const fpl = {
     request(requestOptions, async (err, response, body) => {
       const picks = await body.picks;
       let team = [];
+
       for (let i = 0; i < picks.length; i++) {
         picks[i].name = footballers[picks[i].element].web_name;
         picks[i].playingPosition = footballers[picks[i].element].element_type;
@@ -395,7 +416,7 @@ const fpl = {
         }
       }
 
-      if (player.subsOut.length > 0 && player.team.indexOf(footballer) > 10 && footballer.didNotPlay === false) {
+      if (player.subsOut.length > 0 && player.team.indexOf(footballer) > 10 && !footballer.didNotPlay) {
         for (let i = 0; i < player.subsOut.length; i++) {
           if (checkSub(player.subsOut[i], footballer)) {
             footballer.subIn = true;
@@ -696,6 +717,8 @@ const fpl = {
       sortGroup(cupTables[group].group);
     });
 
+    logger.info('Matchday 2 created');
+
     const elite2a = [groupA[0], groupA[2], groupA[1], groupA[3]];
     createMatches(2, 'groupA', elite2a, cupWeeks[2], true);
     const elite2b = [groupB[0], groupB[2], groupB[1], groupB[3]];
@@ -706,6 +729,8 @@ const fpl = {
       sortGroup(cupTables[group].group);
     });
 
+    logger.info('Matchday 3 created');
+
     const elite3a = [groupA[0], groupA[3], groupA[1], groupA[2]];
     createMatches(3, 'groupA', elite3a, cupWeeks[3], true);
     const elite3b = [groupB[0], groupB[3], groupB[1], groupB[2]];
@@ -715,6 +740,8 @@ const fpl = {
     Object.keys(cupTables).forEach(function (group) {
       sortGroup(cupTables[group].group);
     });
+
+    logger.info('Matchday 4 created');
 
     function Placeholder(name) {
       this.player_name = name;
@@ -741,6 +768,8 @@ const fpl = {
     createMatches(4, 'scruds', scruds4, cupWeeks[4], true);
     sortGroup(cupTables.scruds.group);
 
+    logger.info('Matchday 5 created');
+
     let final = [
       new Placeholder('Winner Semi-Final 1'),
       new Placeholder('Winner Semi-Final 2'),
@@ -756,6 +785,8 @@ const fpl = {
     const scruds5 = scruds.slice(1);
     createMatches(5, 'scruds', scruds5, cupWeeks[5], true);
     sortGroup(cupTables.scruds.group);
+
+    logger.info('Matchday 6 created');
 
     logger.info('Cup data assembled' + timeToLoad());
     loading = false;
