@@ -76,7 +76,7 @@ const fpl = {
           element.ct = 0;
         } else {
           element.games = Math.round(element.total_points / Number(element.points_per_game));
-          element.ct =  100 * (Number(element.creativity) + Number(element.threat)) / element.minutes;
+          element.ct =  100 * (Number(element.creativity) + Number(element.threat)) / (element.games * element.now_cost);
         }
 
         sortedFootballers.push(element);
@@ -88,8 +88,8 @@ const fpl = {
       });
 
       sortedFootballers.forEach(function (footballer) {
-        if (footballer.element_type === 4 && footballer.minutes > 300) {
-          //logger.debug(footballer.web_name + ' ' + Math.round(footballer.ct) + ' ' + footballer.games);
+        if (footballer.minutes > 300) {
+          //logger.debug(footballer.web_name + ' ' + Math.round(footballer.ct));
 
         }
       });
