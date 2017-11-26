@@ -5,7 +5,12 @@
 {{else}}
   <div class="ui two column relaxed grid container center aligned">
     {{> overall-table}}
+    {{> prizes}}
     {{> monthly-tables}}
+  </div>
+  <div class="ui relaxed grid container">
+    {{> cup}}
+    {{> cup-tables}}
   </div>
   <div class="ui four column relaxed grid container center aligned">
     {{> live-gameweek}}
@@ -13,10 +18,6 @@
   <div class="ui relaxed grid container center aligned">
     {{> transfers}}
     {{> captains}}
-  </div>
-  <div class="ui relaxed grid container">
-    {{> cup}}
-    {{> cup-tables}}
   </div>
 {{/if}}
 <script>

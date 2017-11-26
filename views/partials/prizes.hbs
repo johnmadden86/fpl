@@ -1,0 +1,17 @@
+<div class="column">
+  <table class="ui selectable single line table">
+    <thead>
+    <tr>
+      <th colspan="2">Prizes</th>
+    </tr>
+    </thead>
+    <tbody>
+    {{#each prizes}}
+      <tr>
+        <td>{{player_name}}</td>
+        <td>€{{prizeMoney}}</td>
+      </tr>
+    {{/each}}
+    </tbody>
+  </table>
+</div>

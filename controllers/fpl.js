@@ -7,6 +7,7 @@ let gameDetails;
 let footballers = {};
 const players = {};
 let playersSorted;
+let prizesSorted;
 let overallTable;
 let tables = [];
 let time = new Date();
@@ -54,8 +55,9 @@ const fpl = {
       };
       if (gameDetails.thisGameWeek < 38) {
         gameDetails.nextDeadline = body.events[gameDetails.thisGameWeek].deadline_time;
-        gameDetails.thisGameWeekFinished = body.events[gameDetails.thisGameWeek - 1].finished;
       }
+
+      gameDetails.thisGameWeekFinished = body.events[gameDetails.thisGameWeek - 1].finished;
 
       gameDetails.months.forEach((month) => {
         delete month.id;
@@ -76,7 +78,12 @@ const fpl = {
           element.ct = 0;
         } else {
           element.games = Math.round(element.total_points / Number(element.points_per_game));
-          element.ct =  100 * (Number(element.creativity) + Number(element.threat)) / (element.games * element.now_cost);
+          element.ct = (
+                  Number(element.clean_sheets) * (100)
+                  + Number(element.creativity) * 3
+                  + Number(element.threat) * (8 - element.element_type)
+              )
+              / (element.games * element.now_cost);
         }
 
         sortedFootballers.push(element);
@@ -88,9 +95,8 @@ const fpl = {
       });
 
       sortedFootballers.forEach(function (footballer) {
-        if (footballer.minutes > 300) {
-          //logger.debug(footballer.web_name + ' ' + Math.round(footballer.ct));
-
+        if (footballer.games > 6 && footballer.element_type === 2) {
+          // logger.debug(footballer.web_name + ' ' + Math.round(100 * footballer.ct) / 100.0);
         }
       });
 
@@ -207,6 +213,7 @@ const fpl = {
       const results = await body.standings.results;
       for (let result of results) {
         players[result.entry] = result;
+        players[result.entry].prizeMoney = 0;
         players[result.entry].liveWeekTotal = 0;
         fpl.getTeams(players[result.entry]);
       }
@@ -420,7 +427,10 @@ const fpl = {
         for (let i = 0; i < player.subsOut.length; i++) {
           if (checkSub(player.subsOut[i], footballer)) {
             footballer.subIn = true;
-            player.liveWeekTotal += footballer.liveScore;
+            if (footballer.liveScore) {
+              player.liveWeekTotal += footballer.liveScore;
+            }
+
             player.subsOut.splice(i, 1);
           }
         }
@@ -452,7 +462,15 @@ const fpl = {
         content: fpl.createTable(gameDetails.months[i].name),
       };
 
-      table.content[0].prize = 5 * (gameDetails.months[i].stop_event - gameDetails.months[i].start_event + 1);
+      const prize = 5 * (gameDetails.months[i].stop_event - gameDetails.months[i].start_event + 1);
+      table.content[0].prize = prize;
+
+      Object.keys(players).forEach(player => {
+        if (table.content[0].name === players[player].player_name && table.month !== gameDetails.currentMonth) {
+          players[player].prizeMoney += prize;
+        }
+      });
+
       tables.push(table);
       if (table.month === gameDetails.currentMonth) {
         break;
@@ -488,6 +506,17 @@ const fpl = {
     table[1].prize = '€80';
 
     overallTable = table;
+
+    Object.keys(players).forEach(player => {
+      for (let i = 0; i < 2; i++) {
+        if (overallTable[i].name === players[player].player_name
+            && gameDetails.thisGameWeek === 38
+            && gameDetails.thisGameWeekFinished) {
+          players[player].prizeMoney += overallTable[i].prize;
+        }
+      }
+    });
+
     logger.info('Overall table created ' + timeToLoad());
     fpl.cup();
 
@@ -634,6 +663,7 @@ const fpl = {
       players[998490],
     ];
     createMatches(0, 'superCup', superCup, cupWeeks[0], false);
+    cup[0].events.superCup.fixtures[0].winner.prizeMoney += 10;
     const qualifiers = [
       players[119880],
       players[2089907],//0
@@ -782,13 +812,30 @@ const fpl = {
     }
 
     createMatches(5, 'final', final, cupWeeks[5], false);
+
     const scruds5 = scruds.slice(1);
     createMatches(5, 'scruds', scruds5, cupWeeks[5], true);
     sortGroup(cupTables.scruds.group);
 
     logger.info('Matchday 6 created');
-
     logger.info('Cup data assembled' + timeToLoad());
+
+    if (cupWeeks[5] <= gameDetails.thisGameWeek && gameDetails.thisGameWeekFinished) {
+      cup[5].events.final.fixtures[0].winner.prizeMoney += 80;
+      cupTables.scruds.group[0].prizeMoney += 50;
+    }
+
+    prizesSorted = [];
+    Object.keys(players).forEach(function (player) {
+      if (players[player].prizeMoney !== 0) {
+        prizesSorted.push(players[player]);
+      }
+    });
+
+    prizesSorted.sort(function (a, b) {
+      return b.prizeMoney - a.prizeMoney;
+    });
+
     loading = false;
   },
 
@@ -796,6 +843,7 @@ const fpl = {
     const viewData = {
       title: 'Fantasy Football',
       players: playersSorted,
+      prizes: prizesSorted,
       gameDetails: gameDetails,
       tables: tables,
       loading: loading,
