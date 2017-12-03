@@ -704,12 +704,18 @@ const fpl = {
       cup[0].events.superCup.fixtures[0].winner,//pk
       cup[0].events.superCup.fixtures[0].loser,//ros
     ];
+    const elite2a = [groupA[0], groupA[2], groupA[1], groupA[3]];
+    const elite3a = [groupA[0], groupA[3], groupA[1], groupA[2]];
+
     const groupB = [//1234,1324,1423
       bye,//mc
       cup[0].events.qualifiers.fixtures[1].winner,//bd
       cup[0].events.qualifiers.fixtures[0].winner,//mg
       cup[0].events.qualifiers.fixtures[2].winner,//md
     ];
+    const elite2b = [groupB[0], groupB[2], groupB[1], groupB[3]];
+    const elite3b = [groupB[0], groupB[3], groupB[1], groupB[2]];
+
     const scruds = [// 1234, 1325, 1524, 1435, 2345
       cup[0].events.qualifiers.fixtures[2].loser,//mn
       cup[0].events.qualifiers.fixtures[0].loser,//dm
@@ -717,6 +723,11 @@ const fpl = {
       cup[0].events.qualifiers.fixtures[1].loser,
       cup[0].events.qualifiers.fixtures[4].loser,//pb
     ];
+    const scruds1 = scruds.slice(0, 4);
+    const scruds2 = [scruds[0], scruds[2], scruds[1], scruds[4]];
+    const scruds3 = [scruds[0], scruds[4], scruds[1], scruds[3]];
+    const scruds4 = [scruds[0], scruds[3], scruds[2], scruds[4]];
+    const scruds5 = scruds.slice(1);
 
     function CupTable(name, group) {
       this.name = name;
@@ -741,7 +752,6 @@ const fpl = {
 
     createMatches(1, 'groupA', groupA, cupWeeks[1], true);
     createMatches(1, 'groupB', groupB, cupWeeks[1], true);
-    const scruds1 = scruds.slice(0, 4);
     createMatches(1, 'scruds', scruds1, cupWeeks[1], true);
     Object.keys(cupTables).forEach(function (group) {
       sortGroup(cupTables[group].group);
@@ -749,11 +759,9 @@ const fpl = {
 
     logger.info('Matchday 2 created');
 
-    const elite2a = [groupA[0], groupA[2], groupA[1], groupA[3]];
     createMatches(2, 'groupA', elite2a, cupWeeks[2], true);
-    const elite2b = [groupB[0], groupB[2], groupB[1], groupB[3]];
     createMatches(2, 'groupB', elite2b, cupWeeks[2], true);
-    const scruds2 = [scruds[0], scruds[2], scruds[1], scruds[4]];
+
     createMatches(2, 'scruds', scruds2, cupWeeks[2], true);
     Object.keys(cupTables).forEach(function (group) {
       sortGroup(cupTables[group].group);
@@ -761,11 +769,9 @@ const fpl = {
 
     logger.info('Matchday 3 created');
 
-    const elite3a = [groupA[0], groupA[3], groupA[1], groupA[2]];
     createMatches(3, 'groupA', elite3a, cupWeeks[3], true);
-    const elite3b = [groupB[0], groupB[3], groupB[1], groupB[2]];
     createMatches(3, 'groupB', elite3b, cupWeeks[3], true);
-    const scruds3 = [scruds[0], scruds[4], scruds[1], scruds[3]];
+
     createMatches(3, 'scruds', scruds3, cupWeeks[3], true);
     Object.keys(cupTables).forEach(function (group) {
       sortGroup(cupTables[group].group);
@@ -794,7 +800,7 @@ const fpl = {
 
     createMatches(4, 'semiFinal', semi, cupWeeks[4], false);
 
-    const scruds4 = [scruds[0], scruds[3], scruds[2], scruds[4]];
+
     createMatches(4, 'scruds', scruds4, cupWeeks[4], true);
     sortGroup(cupTables.scruds.group);
 
@@ -813,7 +819,6 @@ const fpl = {
 
     createMatches(5, 'final', final, cupWeeks[5], false);
 
-    const scruds5 = scruds.slice(1);
     createMatches(5, 'scruds', scruds5, cupWeeks[5], true);
     sortGroup(cupTables.scruds.group);
 
