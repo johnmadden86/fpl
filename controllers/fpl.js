@@ -79,8 +79,7 @@ const fpl = {
         } else {
           element.games = Math.round(element.total_points / Number(element.points_per_game));
           element.ct = (
-                  Number(element.clean_sheets) * (100)
-                  + Number(element.creativity) * 3
+                  Number(element.creativity) * 3
                   + Number(element.threat) * (8 - element.element_type)
               )
               / (element.games * element.now_cost);
@@ -95,8 +94,8 @@ const fpl = {
       });
 
       sortedFootballers.forEach(function (footballer) {
-        if (footballer.games > 6 && footballer.element_type === 2) {
-          // logger.debug(footballer.web_name + ' ' + Math.round(100 * footballer.ct) / 100.0);
+        if (footballer.element_type === 2 && footballer.minutes > 50) {
+          //logger.debug(footballer.web_name + ' ' + Math.round(100 * footballer.ct) / 100.0);
         }
       });
 
@@ -113,15 +112,19 @@ const fpl = {
       const fixtures = await body.fixtures;
 
       Object.keys(footballers).forEach(function (footballer) {
-        let fixtureId = elements[footballer].explain[0][1];
-        for (let i = 0; i < fixtures.length; i++) {
-          if (fixtures[i].id === fixtureId) {
-            footballers[footballer].fixture = fixtures[i];
-            if (footballers[footballer].fixture.started) {
-              footballers[footballer].liveScore = elements[footballer].stats.total_points;
-              footballers[footballer].didNotPlay = elements[footballer].stats.minutes === 0;
+        if (elements[footballer].explain.length > 0) {
+          let fixtureId = elements[footballer].explain[0][1];
+          for (let i = 0; i < fixtures.length; i++) {
+            if (fixtures[i].id === fixtureId) {
+              footballers[footballer].fixture = fixtures[i];
+              if (footballers[footballer].fixture.started) {
+                footballers[footballer].liveScore = elements[footballer].stats.total_points;
+                footballers[footballer].didNotPlay = elements[footballer].stats.minutes === 0;
+              }
             }
           }
+        } else {
+          footballers[footballer].didNotPlay = true;
         }
       });
 
@@ -761,7 +764,6 @@ const fpl = {
 
     createMatches(2, 'groupA', elite2a, cupWeeks[2], true);
     createMatches(2, 'groupB', elite2b, cupWeeks[2], true);
-
     createMatches(2, 'scruds', scruds2, cupWeeks[2], true);
     Object.keys(cupTables).forEach(function (group) {
       sortGroup(cupTables[group].group);
