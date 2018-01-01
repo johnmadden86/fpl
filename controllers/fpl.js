@@ -41,7 +41,7 @@ const fpl = {
       fpl.getGameDetails();
     }
 
-    setInterval(run, 1000 * 60 * 2);
+    setInterval(run, 1000 * 60 * 12);
   },
 
   getGameDetails() {
