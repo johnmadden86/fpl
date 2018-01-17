@@ -49,8 +49,10 @@ const fpl = {
                     footballer.weightedThreat = 0;
                     await body.history.forEach((event, index, history) => {
                         footballer.history = history;
-                        footballer.weightedCreativity += Number(event.creativity) * Math.pow(event.round, 2);
-                        footballer.weightedThreat += Number(event.threat) * Math.pow(event.round, 2);
+                        // if (index > history.length - 4) {
+                            footballer.weightedCreativity += Number(event.creativity) * Math.pow(event.round, 2);
+                            footballer.weightedThreat += Number(event.threat) * Math.pow(event.round, 2);
+                        // }
                     });
                     //logger.info('Got ' + body.history.length + ' events for ' + footballer.web_name + timeToLoad());
                 });
@@ -61,14 +63,31 @@ const fpl = {
                     footballer.rating =
                         (footballer.weightedThreat * (8 - footballer.element_type)
                             + footballer.weightedCreativity * 3);
-                    //footballer.now_cost;
+                    // footballer.now_cost;
                 });
                 footballers.sort((a, b) => {
                     return b.rating - a.rating;
                 });
                 footballers.forEach(player => {
+                    let position = '';
+                    switch (player.element_type) {
+                        case 1:
+                            position = '\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tGK';
+                            break;
+                        case 2:
+                            position = '\t\t\t\t\t\t\t\t\t\t\t\tDF';
+                            break;
+                        case 3:
+                            position = '\t\t\t\t\t\tMF';
+                            break;
+                        case 4:
+                            position = 'FW';
+                            break;
+                        default:
+                            break;
+                    }
                     if (player.minutes > 90) {
-                        logger.info(player.web_name, Math.round(player.rating));
+                        logger.info(position, player.web_name, Math.round(player.rating / 10000) / 10);
                     }
                 });
             }, 15000);
