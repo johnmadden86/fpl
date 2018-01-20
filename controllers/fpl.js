@@ -28,6 +28,8 @@ let requestOptions = {
   json: {},
 };
 
+let elements, fixtures;
+
 const fpl = {
 
   runApp() {
@@ -53,6 +55,7 @@ const fpl = {
         nextGameWeek: body['next-event'],
         months: body.phases,
       };
+
       if (gameDetails.thisGameWeek < 38) {
         gameDetails.nextDeadline = body.events[gameDetails.thisGameWeek].deadline_time;
       }
@@ -84,10 +87,13 @@ const fpl = {
   live() {
     requestOptions.url = fplUrl + 'event/' + gameDetails.thisGameWeek + '/live';
     request(requestOptions, async (error, response, body) => {
-      const elements = await body.elements;
-      const fixtures = await body.fixtures;
+      elements = await body.elements;
+      fixtures = await body.fixtures;
+    });
 
+    setTimeout(() => {
       Object.keys(footballers).forEach(function (footballer) {
+        logger.debug(typeof elements, typeof fixtures);
         if (elements[footballer].explain.length > 0) {
           let fixtureId = elements[footballer].explain[0][1];
           for (let i = 0; i < fixtures.length; i++) {
@@ -128,9 +134,9 @@ const fpl = {
           }
         }
       });
-    });
 
-    fpl.getPlayers(6085);
+      fpl.getPlayers(6085);
+    }, 5000);
   },
 
   getBonus(fixture) {
@@ -232,7 +238,12 @@ const fpl = {
 
       player.team = team;
       player.transferDetails = transferDetails;
-      logger.info('team details retrieved for ' + player.player_name + timeToLoad());
+      if (player.formation !== null && transferDetails !== null) {
+        logger.info('team details retrieved for ' + player.player_name + timeToLoad());
+      } else {
+        logger.error('error retrieving details  for ' + player.player_name + timeToLoad());
+      }
+
       fpl.getTransfers(player);
     });
   },
@@ -308,6 +319,7 @@ const fpl = {
       player.weekScores = weekScores;
       logger.info('retrieved scores for ' + player.player_name + timeToLoad());
       player.subsOut = [];
+
       for (let i = 0; i < player.team.length; i++) {
         fpl.getLiveScores(player, player.team[i]);
       }
@@ -336,7 +348,7 @@ const fpl = {
 
   getLiveScores(player, footballer) {
 
-    let formation = fpl.getFormation(player.team);
+    let formation = player.formation;
 
     function validFormation() {
       const eleven = formation.g + formation.d + formation.m + formation.f === 11;
@@ -389,6 +401,8 @@ const fpl = {
       footballer.liveScore *= footballer.multiplier;
       if (player.team.indexOf(footballer) < 11 || player.transferDetails.chip === 'bboost') {
         player.liveWeekTotal += footballer.liveScore;
+      } else {
+        logger.error('No score found for ' + footballer.web_name);
       }
     }
 
