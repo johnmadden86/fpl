@@ -1,9 +1,9 @@
 <div class="column eight wide middle aligned">
   {{#each cupTables}}
-    <table class="ui selectable compact celled table">
+    <table class="ui selectable compact single line table">
       <thead>
       <tr>
-        <th>{{name}}</th>
+        <th colspan="2">{{name}}</th>
         <th class="center aligned">P</th>
         <th class="center aligned">W</th>
         <th class="center aligned">D</th>
@@ -16,6 +16,7 @@
       <tbody>
       {{#each group}}
         <tr>
+          <td>{{#if prize}} <div class="ui ribbon label">€{{prize}}</div>{{/if}}</td>
           <td class="right aligned">{{player_name}}</td>
           <td class="center aligned">{{tableEntry.played}}</td>
           <td class="center aligned">{{tableEntry.won}}</td>

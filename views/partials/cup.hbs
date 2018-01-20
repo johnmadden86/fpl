@@ -5,12 +5,13 @@
       {{#each events}}
         <thead>
         <tr>
-          <th colspan="3">{{name}}</th>
+          <th colspan="4">{{name}}</th>
         </tr>
         </thead>
         <tbody>
         {{#each fixtures}}
           <tr>
+            <td>{{#if prize}} <div class="ui ribbon label">€{{prize}}</div>{{/if}}</td>
             <td class="right aligned">{{team1.player_name}}</td>
             <td class="center aligned">{{#if score1}}{{score1}} - {{score2}}{{else}}v{{/if}}</td>
             <td class="left aligned">{{team2.player_name}}</td>

@@ -41,7 +41,7 @@ const fpl = {
       fpl.getGameDetails();
     }
 
-    setInterval(run, 1000 * 60 * 2);
+    setInterval(run, 1000 * 60 * 12);
   },
 
   getGameDetails() {
@@ -72,35 +72,11 @@ const fpl = {
 
       gameDetails.currentMonth = currentMonth;
 
-      const sortedFootballers = [];
       body.elements.forEach(function (element) {
-        if (element.minutes === 0) {
-          element.ct = 0;
-        } else {
-          element.games = Math.round(element.total_points / Number(element.points_per_game));
-          element.ct = (
-                  Number(element.creativity) * 3
-                  + Number(element.threat) * (8 - element.element_type)
-              )
-              / (element.games * element.now_cost);
-        }
-
-        sortedFootballers.push(element);
         footballers[element.id] = element;
       });
 
-      sortedFootballers.sort(function (a, b) {
-        return b.ct - a.ct;
-      });
-
-      sortedFootballers.forEach(function (footballer) {
-        if (footballer.element_type === 2 && footballer.minutes > 50) {
-          //logger.debug(footballer.web_name + ' ' + Math.round(100 * footballer.ct) / 100.0);
-        }
-      });
-
       logger.info('Got game details' + timeToLoad());
-
       fpl.live();
     });
   },
@@ -801,8 +777,6 @@ const fpl = {
     }
 
     createMatches(4, 'semiFinal', semi, cupWeeks[4], false);
-
-
     createMatches(4, 'scruds', scruds4, cupWeeks[4], true);
     sortGroup(cupTables.scruds.group);
 
@@ -826,6 +800,10 @@ const fpl = {
 
     logger.info('Matchday 6 created');
     logger.info('Cup data assembled' + timeToLoad());
+
+    cupTables.scruds.group[0].prize = 50;
+    cup[0].events.superCup.fixtures[0].prize = 10;
+    cup[5].events.final.fixtures[0].prize = 80;
 
     if (cupWeeks[5] <= gameDetails.thisGameWeek && gameDetails.thisGameWeekFinished) {
       cup[5].events.final.fixtures[0].winner.prizeMoney += 80;
@@ -859,7 +837,7 @@ const fpl = {
       cupTables: cupTables,
     };
 
-    //logger.info('Rendering index');
+    // logger.info('Rendering index');
     response.render('index', viewData);
   },
 
