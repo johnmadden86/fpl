@@ -1,7 +1,7 @@
 {{#each players}}
-  <div class="floated column">
+  <div class="ui floated column">
     <table class="ui selectable compact table">
-      <thead>
+      <thead class="title">
       <tr>
         <th colspan="3">
           {{player_name}}{{#if transferDetails.chip}}<br>({{readableChip transferDetails.chip}}){{/if}}<br>
@@ -13,7 +13,7 @@
         <th>{{liveWeekTotal}}</th>
       </tr>
       </thead>
-      <tbody>
+      <tbody class="content">
       {{#each team}}
         <tr>
           <td>{{numberToPosition playingPosition}}</td>

@@ -3,6 +3,10 @@
     <div class="ui indeterminate text loader">Loading...</div>
   </div>
 {{else}}
+  {{> header}}
+  <div class="ui container">
+
+  </div>
   <div class="ui two column relaxed grid container center aligned">
     {{> overall-table}}
     {{> prizes}}
@@ -35,7 +39,8 @@
   }
 
   $( function () {
-    $(' .ui.accordion ').accordion();
+    $(' .ui.accordion ').accordion({
+  });
   } );
 </script>
 

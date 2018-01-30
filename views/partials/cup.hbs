@@ -1,14 +1,14 @@
-<div class="column eight wide">
+<div class="ui column eight wide">
   {{#each cup}}
-    <div class="ui medium header">Gameweek {{gameWeek}}</div>
-    <table class="ui selectable compact table">
+    <div class="ui medium header title">Gameweek {{gameWeek}}</div>
+    <table class="ui selectable compact table content">
       {{#each events}}
-        <thead>
+        <thead class="title">
         <tr>
           <th colspan="4">{{name}}</th>
         </tr>
         </thead>
-        <tbody>
+        <tbody class="content">
         {{#each fixtures}}
           <tr>
             <td>{{#if prize}} <div class="ui ribbon label">€{{prize}}</div>{{/if}}</td>
