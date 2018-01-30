@@ -148,9 +148,9 @@ const fpl = {
                     default:
                       break;
                   }
-                   if (player.element_type >= 3 && player.now_cost < 60) {
+                  if (player.element_type >= 3 && player.now_cost < 60) {
                     logger.info(position, player.web_name, Math.round(player.rating) / 10);
-                   }
+                  }
                 });
               }
             })
@@ -295,6 +295,10 @@ const fpl = {
 
           for (let i = 0; i < picks.length; i++) {
             picks[i].name = footballers[picks[i].element].web_name;
+            picks[i].image =
+                'https://platform-static-files.s3.amazonaws.com/premierleague/photos/players/110x140/p'
+                + footballers[picks[i].element].code + '.png';
+            logger.info(typeof picks[i].image);
             picks[i].playingPosition = footballers[picks[i].element].element_type;
             picks[i].liveScore = footballers[picks[i].element].liveScore;
             picks[i].didNotPlay = footballers[picks[i].element].didNotPlay;
