@@ -435,7 +435,7 @@ const fpl = {
 
   getLiveScores(player, footballer) {
 
-    let formation = player.formation;
+    let formation = fpl.getFormation(player.team);
 
     function validFormation() {
       const eleven = formation.g + formation.d + formation.m + formation.f === 11;
@@ -444,6 +444,7 @@ const fpl = {
     }
 
     function checkSub(footballerOut, footballerIn) {
+      //logger.debug(footballerOut.name, footballerIn.name, player.player_name, player.formation);
       switch (footballerOut.playingPosition) {
         case 1:
           formation.g--;
@@ -473,7 +474,7 @@ const fpl = {
           formation.f++;
           break;
       }
-
+      logger.info(player.player_name, player.formation, formation);
       return validFormation();
     }
 
@@ -508,7 +509,6 @@ const fpl = {
             if (footballer.liveScore) {
               player.liveWeekTotal += footballer.liveScore;
             }
-
             player.subsOut.splice(i, 1);
           }
         }
