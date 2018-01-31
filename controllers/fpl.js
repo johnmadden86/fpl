@@ -444,7 +444,6 @@ const fpl = {
     }
 
     function checkSub(footballerOut, footballerIn) {
-      //logger.debug(footballerOut.name, footballerIn.name, player.player_name, player.formation);
       switch (footballerOut.playingPosition) {
         case 1:
           formation.g--;
@@ -474,7 +473,6 @@ const fpl = {
           formation.f++;
           break;
       }
-      logger.info(player.player_name, player.formation, formation);
       return validFormation();
     }
 
@@ -866,7 +864,7 @@ const fpl = {
       new Placeholder('Winner Group B'),
       new Placeholder('Runner-up Group A'),
     ];
-    if (cupWeeks[3] <= gameDetails.thisGameWeek && gameDetails.thisGameWeekFinished) {
+    if (cupWeeks[3] < gameDetails.thisGameWeek || cupWeeks[3] === gameDetails.thisGameWeek && gameDetails.thisGameWeekFinished) {
       semi = [
         cupTables.groupA.group[0],
         cupTables.groupB.group[1],
@@ -885,7 +883,7 @@ const fpl = {
       new Placeholder('Winner Semi-Final 1'),
       new Placeholder('Winner Semi-Final 2'),
     ];
-    if (cupWeeks[4] <= gameDetails.thisGameWeek && gameDetails.thisGameWeekFinished) {
+    if (cupWeeks[4] < gameDetails.thisGameWeek || cupWeeks[4] === gameDetails.thisGameWeek && gameDetails.thisGameWeekFinished) {
       final = [
         cup[4].events.semiFinal.fixtures[0].winner,
         cup[4].events.semiFinal.fixtures[1].winner,
