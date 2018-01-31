@@ -1,27 +1,28 @@
-<div class="ui column eight wide">
-  <table class="ui selectable compact table">
-    <thead class="title">
-    <tr>
-      <th>Transfers</th>
-      <th>In</th>
-      <th>Out</th>
-    </tr>
-    </thead>
-    <tbody class="content">
-    {{#each players}}
-      <tr>
-        <td rowspan="{{transferDetails.transfers}}">{{player_name}}</td>
-      {{#each transferHistory}}
-        {{#if latest}}
-            <td><i class="green chevron circle up icon"></i> {{playerIn}}</td>
-            <td><i class="red chevron circle down icon"></i> {{playerOut}}</td>
-          </tr>
-        {{/if}}
-      {{/each}}
-    {{/each}}
-    </tbody>
-  </table>
+<div class="ui column ten wide">
+    <table class="ui selectable compact table">
+        <thead class="title">
+        <tr>
+            <th>Transfers</th>
+            <th>In</th>
+            <th>Out</th>
+        </tr>
+        </thead>
+        <tbody class="content">
+        {{#each players}}
+            <tr>
+                <td rowspan="{{noZero transferDetails.transfers}}">{{player_name}}</td>
+            {{#if transferDetails.noGameWeekTransfers}}
+                <td></td>
+                <td></td>
+            {{/if}}
+            {{#each transferHistory}}
+                {{#if latest}}
+                        <td><i class="green chevron circle up icon"></i> {{playerIn}}</td>
+                        <td><i class="red chevron circle down icon"></i> {{playerOut}}</td>
+                    </tr>
+                {{/if}}
+            {{/each}}
+        {{/each}}
+        </tbody>
+    </table>
 </div>
-<script>
-  let tag = document.getElementsByClassName('player');
-</script>

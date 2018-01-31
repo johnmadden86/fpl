@@ -49,56 +49,56 @@ const fpl = {
   getGameDetails(attempt) {
     liveScoreCounter = 0;
     request('bootstrap-static')
-        .then(response => {
-          const body = response.data;
-          gameDetails = {
-            thisGameWeek: body['current-event'],
-            nextGameWeek: body['next-event'],
-            months: body.phases,
-          };
+      .then(response => {
+        const body = response.data;
+        gameDetails = {
+          thisGameWeek: body['current-event'],
+          nextGameWeek: body['next-event'],
+          months: body.phases,
+        };
 
-          if (gameDetails.thisGameWeek < 38) {
-            gameDetails.nextDeadline = body.events[gameDetails.thisGameWeek].deadline_time;
-          }
+        if (gameDetails.thisGameWeek < 38) {
+          gameDetails.nextDeadline = body.events[gameDetails.thisGameWeek].deadline_time;
+        }
 
-          gameDetails.thisGameWeekFinished = body.events[gameDetails.thisGameWeek - 1].finished;
+        gameDetails.thisGameWeekFinished = body.events[gameDetails.thisGameWeek - 1].finished;
 
-          gameDetails.months.forEach((month) => {
-            delete month.id;
-          });
-          let currentMonth;
-          for (let i = 1; i < 10; i++) {
-            if (gameDetails.thisGameWeek >= gameDetails.months[i].start_event &&
-                gameDetails.thisGameWeek <= gameDetails.months[i].stop_event) {
-              currentMonth = gameDetails.months[i].name;
-            }
-          }
-
-          gameDetails.currentMonth = currentMonth;
-
-          let footballersArray = [];
-
-          body.elements.forEach(function (element, index, elements) {
-            footballers[element.id] = element;
-            if (Number(element.form) > 0) {
-              footballersArray.push(element);
-            }
-          });
-
-          logger.info('Got ' + Object.keys(footballers).length + ' footballers' + timeToLoad());
-          logger.info('Getting stats for ' + footballersArray.length + ' footballers');
-          logger.info('Got game details' + timeToLoad());
-          fpl.live();
-
-          if (attempt < 2) {
-            setTimeout(() => {
-              fpl.getStats(footballersArray);
-            }, 3500);
-          }
-        })
-        .catch(error => {
-          logger.info(error);
+        gameDetails.months.forEach((month) => {
+          delete month.id;
         });
+        let currentMonth;
+        for (let i = 1; i < 10; i++) {
+          if (gameDetails.thisGameWeek >= gameDetails.months[i].start_event &&
+            gameDetails.thisGameWeek <= gameDetails.months[i].stop_event) {
+            currentMonth = gameDetails.months[i].name;
+          }
+        }
+
+        gameDetails.currentMonth = currentMonth;
+
+        let footballersArray = [];
+
+        body.elements.forEach(function (element, index, elements) {
+          footballers[element.id] = element;
+          if (Number(element.form) > 0) {
+            footballersArray.push(element);
+          }
+        });
+
+        logger.info('Got ' + Object.keys(footballers).length + ' footballers' + timeToLoad());
+        logger.info('Getting stats for ' + footballersArray.length + ' footballers');
+        logger.info('Got game details' + timeToLoad());
+        fpl.live();
+
+        if (attempt < 2) {
+          setTimeout(() => {
+            fpl.getStats(footballersArray);
+          }, 3500);
+        }
+      })
+      .catch(error => {
+        logger.info(error);
+      });
   },
 
   getStats(footballersArray) {
@@ -107,56 +107,56 @@ const fpl = {
     footballersArray.forEach((footballer, index, footballers) => {
       setTimeout(() => {
         request('element-summary/' + footballer.id)
-            .then(response => {
-              const body = response.data;
-              let total = 0;
-              const power = 1 - 1 + gameDetails.thisGameWeek / 10;
-              for (let i = 1; i <= gameDetails.thisGameWeek; i++) {
-                total += Math.pow(i, power);
-              }
+          .then(response => {
+            const body = response.data;
+            let total = 0;
+            const power = 1 - 1 + gameDetails.thisGameWeek / 10;
+            for (let i = 1; i <= gameDetails.thisGameWeek; i++) {
+              total += Math.pow(i, power);
+            }
 
-              footballer.weightedCreativity = 0;
-              footballer.weightedThreat = 0;
-              body.history.forEach(event => {
-                footballer.weightedCreativity += Number(event.creativity) * Math.pow(event.round, power) / total;
-                footballer.weightedThreat += Number(event.threat) * Math.pow(event.round, power) / total;
-              });
-              logger.debug('got stats for ' + footballer.web_name + timeToLoad());
-              footballer.rating =
-                  (footballer.weightedThreat * (8 - footballer.element_type)
-                      + footballer.weightedCreativity * 3); // (footballer.now_cost/10);
-              delay--;
-              if (delay === 0) {
-                footballers.sort((a, b) => {
-                  return b.rating - a.rating;
-                });
-                footballers.forEach(player => {
-                  let position = '';
-                  switch (player.element_type) {
-                    case 1:
-                      position = '\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tGK';
-                      break;
-                    case 2:
-                      position = '\t\t\t\t\t\t\t\t\t\t\t\tDF';
-                      break;
-                    case 3:
-                      position = '\t\t\t\t\t\tMF';
-                      break;
-                    case 4:
-                      position = 'FW';
-                      break;
-                    default:
-                      break;
-                  }
-                  if (player.element_type >= 3 && player.now_cost < 60) {
-                    logger.info(position, player.web_name, Math.round(player.rating) / 10);
-                  }
-                });
-              }
-            })
-            .catch(err => {
-              logger.error('error retrieving stats for ' + footballer.web_name + '\n' + err);
+            footballer.weightedCreativity = 0;
+            footballer.weightedThreat = 0;
+            body.history.forEach(event => {
+              footballer.weightedCreativity += Number(event.creativity) * Math.pow(event.round, power) / total;
+              footballer.weightedThreat += Number(event.threat) * Math.pow(event.round, power) / total;
             });
+            // logger.debug('got stats for ' + footballer.web_name + timeToLoad());
+            footballer.rating =
+              (footballer.weightedThreat * (8 - footballer.element_type)
+                + footballer.weightedCreativity * 3); // (footballer.now_cost/10);
+            delay--;
+            if (delay === 0) {
+              footballers.sort((a, b) => {
+                return b.rating - a.rating;
+              });
+              footballers.forEach(player => {
+                let position = '';
+                switch (player.element_type) {
+                  case 1:
+                    position = '\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tGK';
+                    break;
+                  case 2:
+                    position = '\t\t\t\t\t\t\t\t\t\t\t\tDF';
+                    break;
+                  case 3:
+                    position = '\t\t\t\t\t\tMF';
+                    break;
+                  case 4:
+                    position = 'FW';
+                    break;
+                  default:
+                    break;
+                }
+                if (player.element_type >= 3 && player.now_cost < 60) {
+                  // logger.info(position, player.web_name, Math.round(player.rating) / 10);
+                }
+              });
+            }
+          })
+          .catch(err => {
+            logger.error('error retrieving stats for ' + footballer.web_name + '\n' + err);
+          });
       }, timeout);
       timeout += 30;
     });
@@ -164,56 +164,56 @@ const fpl = {
 
   live() {
     request('event/' + gameDetails.thisGameWeek + '/live')
-        .then(response => {
-          const body = response.data;
-          elements = body.elements;
-          fixtures = body.fixtures;
+      .then(response => {
+        const body = response.data;
+        elements = body.elements;
+        fixtures = body.fixtures;
 
-          //setTimeout(() => {
-          Object.keys(footballers).forEach(function (footballer) {
-            if (elements[footballer] && elements[footballer].explain.length > 0) {
-              let fixtureId = elements[footballer].explain[0][1];
-              for (let i = 0; i < fixtures.length; i++) {
-                if (fixtures[i].id === fixtureId) {
-                  footballers[footballer].fixture = fixtures[i];
-                  if (footballers[footballer].fixture.started) {
-                    footballers[footballer].liveScore = elements[footballer].stats.total_points;
-                    footballers[footballer].didNotPlay = elements[footballer].stats.minutes === 0;
-                  }
-                }
-              }
-            } else {
-              footballers[footballer].didNotPlay = true;
-            }
-          });
-
-          fixtures.forEach(function (fixture) {
-            if (fixture.stats[8]) {
-              if (fixture.stats[8].bonus.a.length + fixture.stats[8].bonus.h.length === 0) {
-                fpl.getBonus(fixture);
-                for (let i = 0; i < fixture.bonus.three.length; i++) {
-                  fixture.bonus.three.forEach(function (element) {
-                    footballers[element].liveScore += 3;
-                  });
-                }
-
-                for (let i = 0; i < fixture.bonus.two.length; i++) {
-                  fixture.bonus.two.forEach(function (element) {
-                    footballers[element].liveScore += 2;
-                  });
-                }
-
-                for (let i = 0; i < fixture.bonus.one.length; i++) {
-                  fixture.bonus.one.forEach(function (element) {
-                    footballers[element].liveScore += 1;
-                  });
+        //setTimeout(() => {
+        Object.keys(footballers).forEach(function (footballer) {
+          if (elements[footballer] && elements[footballer].explain.length > 0) {
+            let fixtureId = elements[footballer].explain[0][1];
+            for (let i = 0; i < fixtures.length; i++) {
+              if (fixtures[i].id === fixtureId) {
+                footballers[footballer].fixture = fixtures[i];
+                if (footballers[footballer].fixture.started) {
+                  footballers[footballer].liveScore = elements[footballer].stats.total_points;
+                  footballers[footballer].didNotPlay = elements[footballer].stats.minutes === 0;
                 }
               }
             }
-          });
-
-          fpl.getPlayers(leagueCode);
+          } else {
+            footballers[footballer].didNotPlay = true;
+          }
         });
+
+        fixtures.forEach(function (fixture) {
+          if (fixture.stats[8]) {
+            if (fixture.stats[8].bonus.a.length + fixture.stats[8].bonus.h.length === 0) {
+              fpl.getBonus(fixture);
+              for (let i = 0; i < fixture.bonus.three.length; i++) {
+                fixture.bonus.three.forEach(function (element) {
+                  footballers[element].liveScore += 3;
+                });
+              }
+
+              for (let i = 0; i < fixture.bonus.two.length; i++) {
+                fixture.bonus.two.forEach(function (element) {
+                  footballers[element].liveScore += 2;
+                });
+              }
+
+              for (let i = 0; i < fixture.bonus.one.length; i++) {
+                fixture.bonus.one.forEach(function (element) {
+                  footballers[element].liveScore += 1;
+                });
+              }
+            }
+          }
+        });
+
+        fpl.getPlayers(leagueCode);
+      });
     //}, 1500);
   },
 
@@ -272,64 +272,63 @@ const fpl = {
 
   getPlayers(leagueId) {
     request('leagues-classic-standings/' + leagueId)
-        .then(response => {
-          const body = response.data;
-          const results = body.standings.results;
-          for (let result of results) {
-            players[result.entry] = result;
-            players[result.entry].prizeMoney = 0;
-            players[result.entry].liveWeekTotal = 0;
-            fpl.getTeams(players[result.entry]);
-          }
+      .then(response => {
+        const body = response.data;
+        const results = body.standings.results;
+        for (let result of results) {
+          players[result.entry] = result;
+          players[result.entry].prizeMoney = 0;
+          players[result.entry].liveWeekTotal = 0;
+          fpl.getTeams(players[result.entry]);
+        }
 
-          logger.info(results.length + ' players retrieved' + timeToLoad());
-        });
+        logger.info(results.length + ' players retrieved' + timeToLoad());
+      });
   },
 
   getTeams(player) {
     request('entry/' + player.entry + '/event/' + gameDetails.thisGameWeek + '/picks')
-        .then(response => {
-          const body = response.data;
-          const picks = body.picks;
-          let team = [];
+      .then(response => {
+        const body = response.data;
+        const picks = body.picks;
+        let team = [];
 
-          for (let i = 0; i < picks.length; i++) {
-            picks[i].name = footballers[picks[i].element].web_name;
-            picks[i].image =
-                'https://platform-static-files.s3.amazonaws.com/premierleague/photos/players/110x140/p'
-                + footballers[picks[i].element].code + '.png';
-            logger.info(typeof picks[i].image);
-            picks[i].playingPosition = footballers[picks[i].element].element_type;
-            picks[i].liveScore = footballers[picks[i].element].liveScore;
-            picks[i].didNotPlay = footballers[picks[i].element].didNotPlay;
-            if (picks[i].is_captain) {
-              player.captain = picks[i].name;
-              if (picks[i].didNotPlay) {
-                player.useViceCaptain = true;
-              }
+        for (let i = 0; i < picks.length; i++) {
+          picks[i].name = footballers[picks[i].element].web_name;
+          picks[i].image =
+            'https://platform-static-files.s3.amazonaws.com/premierleague/photos/players/110x140/p'
+            + footballers[picks[i].element].code + '.png';
+          picks[i].playingPosition = footballers[picks[i].element].element_type;
+          picks[i].liveScore = footballers[picks[i].element].liveScore;
+          picks[i].didNotPlay = footballers[picks[i].element].didNotPlay;
+          if (picks[i].is_captain) {
+            player.captain = picks[i].name;
+            if (picks[i].didNotPlay) {
+              player.useViceCaptain = true;
             }
-
-            team.push(picks[i]);
           }
 
-          player.formation = fpl.getFormation(team);
+          team.push(picks[i]);
+        }
 
-          const transferDetails = {
-            chip: body.active_chip,
-            transfers: body.entry_history.event_transfers,
-            pointsHit: body.entry_history.event_transfers_cost * -1,
-          };
+        player.formation = fpl.getFormation(team);
 
-          player.team = team;
-          player.transferDetails = transferDetails;
-          if (player.formation !== null && transferDetails !== null) {
-            logger.info('team details retrieved for ' + player.player_name + timeToLoad());
-          } else {
-            logger.error('error retrieving details  for ' + player.player_name + timeToLoad());
-          }
+        const transferDetails = {
+          chip: body.active_chip,
+          transfers: body.entry_history.event_transfers,
+          pointsHit: body.entry_history.event_transfers_cost * -1,
+        };
 
-          fpl.getTransfers(player);
-        });
+        player.team = team;
+        player.transferDetails = transferDetails;
+        if (player.formation !== null && transferDetails !== null) {
+          logger.info('team details retrieved for ' + player.player_name + timeToLoad());
+        } else {
+          logger.error('error retrieving details  for ' + player.player_name + timeToLoad());
+        }
+
+        fpl.getTransfers(player);
+      });
   },
 
   getFormation(team) {
@@ -367,24 +366,28 @@ const fpl = {
   },
 
   getTransfers(player) {
-    request('entry/' + player.entry + '/transfers').then(response => {
-      const body = response.data;
-      let numberOfTransfers = 0;
-      const transferHistory = body.history;
-      transferHistory.forEach(function (transfer) {
-        transfer.playerIn = footballers[transfer.element_in].web_name;
-        transfer.playerOut = footballers[transfer.element_out].web_name;
-        if (transfer.event === gameDetails.thisGameWeek) {
-          transfer.latest = true;
-          numberOfTransfers++;
-        }
-      });
+    request('entry/' + player.entry + '/transfers')
+      .then(response => {
+        const body = response.data;
+        let numberOfTransfers = 0;
+        let noGameWeekTransfers = true;
+        const transferHistory = body.history;
+        transferHistory.forEach(function (transfer) {
+          transfer.playerIn = footballers[transfer.element_in].web_name;
+          transfer.playerOut = footballers[transfer.element_out].web_name;
+          if (transfer.event === gameDetails.thisGameWeek) {
+            transfer.latest = true;
+            numberOfTransfers++;
+            noGameWeekTransfers = false;
+          }
+        });
 
-      player.transferDetails.transfers = numberOfTransfers;
-      player.transferHistory = transferHistory;
-      logger.info('transfer info retrieved for ' + player.player_name + timeToLoad());
-      fpl.getScores(player);
-    });
+        player.transferDetails.noGameWeekTransfers = noGameWeekTransfers;
+        player.transferDetails.transfers = numberOfTransfers;
+        player.transferHistory = transferHistory;
+        logger.info('transfer info retrieved for ' + player.player_name + timeToLoad());
+        fpl.getScores(player);
+      });
   },
 
   getScores(player) {
@@ -396,7 +399,7 @@ const fpl = {
       details.forEach(function (gameWeek) {
         weekScores[gameWeek.event] = gameWeek;
         weekScores[gameWeek.event].netScore =
-            weekScores[gameWeek.event].points - weekScores[gameWeek.event].event_transfers_cost;
+          weekScores[gameWeek.event].points - weekScores[gameWeek.event].event_transfers_cost;
       });
 
       player.transferDetails.totalTransfers = totalTransfers;
@@ -514,10 +517,10 @@ const fpl = {
 
     player.weekScores[gameDetails.thisGameWeek].points = player.liveWeekTotal;
     player.weekScores[gameDetails.thisGameWeek].netScore =
-        player.liveWeekTotal - player.weekScores[gameDetails.thisGameWeek].event_transfers_cost;
+      player.liveWeekTotal - player.weekScores[gameDetails.thisGameWeek].event_transfers_cost;
 
     logger.info('Live scores retrieved for '
-        + player.player_name + ' (' + footballer.position + '/15)' + timeToLoad());
+      + player.player_name + ' (' + footballer.position + '/15)' + timeToLoad());
 
     fpl.getMonthScores(player);
     liveScoreCounter++;
@@ -585,8 +588,8 @@ const fpl = {
     Object.keys(players).forEach(player => {
       for (let i = 0; i < 2; i++) {
         if (overallTable[i].name === players[player].player_name
-            && gameDetails.thisGameWeek === 38
-            && gameDetails.thisGameWeekFinished) {
+          && gameDetails.thisGameWeek === 38
+          && gameDetails.thisGameWeekFinished) {
           players[player].prizeMoney += overallTable[i].prize;
         }
       }
@@ -729,7 +732,7 @@ const fpl = {
       const noOfMatches = teams.length / 2;
       for (let i = 0; i < noOfMatches; i++) {
         cup[matchDay].events[event].fixtures.push(
-            new Fixture(teams[i * 2], teams[i * 2 + 1], gameWeek, league));
+          new Fixture(teams[i * 2], teams[i * 2 + 1], gameWeek, league));
       }
     }
 

@@ -9,6 +9,10 @@ Handlebars.registerHelper('blankIfZero', function (number) {
   }
 });
 
+Handlebars.registerHelper('noZero', function (number) {
+  return number === 0 ? 1 : number;
+});
+
 Handlebars.registerHelper('numberToPosition', function (number) {
   const positions = ['GK', 'DF', 'MF', 'FW'];
   return positions[number - 1];
