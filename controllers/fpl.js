@@ -4,6 +4,7 @@ const logger = require('../utils/logger');
 const Handlebars = require('../utils/handlebar-helper');
 const leagueCode = 6085;
 let gameDetails;
+let footballersList;
 let footballers = {};
 const players = {};
 let playersSorted;
@@ -93,7 +94,7 @@ const fpl = {
         if (attempt < 2) {
           setTimeout(() => {
             fpl.getStats(footballersArray);
-          }, 3500);
+          }, 1500);
         }
       })
       .catch(error => {
@@ -124,13 +125,14 @@ const fpl = {
             // logger.debug('got stats for ' + footballer.web_name + timeToLoad());
             footballer.rating =
               (footballer.weightedThreat * (8 - footballer.element_type)
-                + footballer.weightedCreativity * 3); // (footballer.now_cost/10);
+                + footballer.weightedCreativity * 3); // (footballer.now_cost / 100);
             delay--;
             if (delay === 0) {
               footballers.sort((a, b) => {
                 return b.rating - a.rating;
               });
-              footballers.forEach(player => {
+              footballers.forEach((player, index, players) => {
+                footballersList = players;
                 let position = '';
                 switch (player.element_type) {
                   case 1:
@@ -148,8 +150,8 @@ const fpl = {
                   default:
                     break;
                 }
-                if (player.element_type >= 3 && player.now_cost < 60) {
-                  // logger.info(position, player.web_name, Math.round(player.rating) / 10);
+                if (player.element_type < 5 || player.now_cost <= 58) {
+                  logger.info(position, player.web_name, Math.round(player.rating) / 10);
                 }
               });
             }
@@ -169,7 +171,6 @@ const fpl = {
         elements = body.elements;
         fixtures = body.fixtures;
 
-        //setTimeout(() => {
         Object.keys(footballers).forEach(function (footballer) {
           if (elements[footballer] && elements[footballer].explain.length > 0) {
             let fixtureId = elements[footballer].explain[0][1];
@@ -214,7 +215,6 @@ const fpl = {
 
         fpl.getPlayers(leagueCode);
       });
-    //}, 1500);
   },
 
   getBonus(fixture) {
@@ -932,6 +932,7 @@ const fpl = {
       overallTable: overallTable,
       cup: cup,
       cupTables: cupTables,
+      footballers: footballersList,
     };
 
     // logger.info('Rendering index');

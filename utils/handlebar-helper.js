@@ -9,6 +9,10 @@ Handlebars.registerHelper('blankIfZero', function (number) {
   }
 });
 
+Handlebars.registerHelper('divideByTen', number => {
+  return (Math.round(number) / 10).toFixed(1);
+});
+
 Handlebars.registerHelper('noZero', function (number) {
   return number === 0 ? 1 : number;
 });

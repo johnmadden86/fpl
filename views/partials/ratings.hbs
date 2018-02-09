@@ -1,0 +1,19 @@
+<div class="ui column">
+    <table class="ui selectable compact single line table">
+        <thead class="title">
+        <tr>
+            <th colspan="4">Rating</th>
+        </tr>
+        </thead>
+        <tbody class="content">
+        {{#each footballers}}
+            <tr>
+                <td>{{numberToPosition element_type}}</td>
+                <td>{{web_name}}</td>
+                <td>{{divideByTen now_cost}}</td>
+                <td>{{divideByTen rating}}</td>
+            </tr>
+        {{/each}}
+        </tbody>
+    </table>
+</div>
