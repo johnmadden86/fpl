@@ -63,6 +63,7 @@ const fpl = {
         }
 
         gameDetails.thisGameWeekFinished = body.events[gameDetails.thisGameWeek - 1].finished;
+        gameDetails.thisGameWeekFinished = true;
 
         gameDetails.months.forEach((month) => {
           delete month.id;
@@ -76,6 +77,7 @@ const fpl = {
         }
 
         gameDetails.currentMonth = currentMonth;
+        gameDetails.currentMonth = 'June';
 
         let footballersArray = [];
 
@@ -447,7 +449,6 @@ const fpl = {
     let i = 1;
     let j = 1;
     while (i <= gameDetails.thisGameWeek) {
-      logger.debug(player.player_name, i, j);
       if (j < gameDetails.months.length) {
         if (i >= gameDetails.months[j].start_event && i <= gameDetails.months[j].stop_event) {
           points = 0;
@@ -577,7 +578,7 @@ const fpl = {
       Object.keys(players).forEach(player => {
         if (table.content[0].name === players[player].player_name
           && table.month !== gameDetails.currentMonth
-          || gameDetails.thisGameWeek === 38 && gameDetails.thisGameWeekFinished
+          //|| gameDetails.thisGameWeek === 38 && gameDetails.thisGameWeekFinished
         ) {
           players[player].prizeMoney += prize;
         }
@@ -614,8 +615,8 @@ const fpl = {
       return scoreB - scoreA;
     });
 
-    table[0].prize = '€240';
-    table[1].prize = '€80';
+    table[0].prize = 240;
+    table[1].prize = 80;
 
     overallTable = table;
 
