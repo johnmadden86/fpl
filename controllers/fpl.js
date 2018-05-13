@@ -68,7 +68,7 @@ const fpl = {
           delete month.id;
         });
         let currentMonth;
-        for (let i = 1; i < 10; i++) {
+        for (let i = 1; i <= 10; i++) {
           if (gameDetails.thisGameWeek >= gameDetails.months[i].start_event &&
             gameDetails.thisGameWeek <= gameDetails.months[i].stop_event) {
             currentMonth = gameDetails.months[i].name;
@@ -571,7 +571,10 @@ const fpl = {
       table.content[0].prize = prize;
 
       Object.keys(players).forEach(player => {
-        if (table.content[0].name === players[player].player_name && table.month !== gameDetails.currentMonth) {
+        if (table.content[0].name === players[player].player_name
+          && table.month !== gameDetails.currentMonth
+          || gameDetails.thisGameWeek === 38 && gameDetails.thisGameWeekFinished
+        ) {
           players[player].prizeMoney += prize;
         }
       });
