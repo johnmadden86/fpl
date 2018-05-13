@@ -446,10 +446,13 @@ const fpl = {
     let monthScore = {};
     let i = 1;
     let j = 1;
-    while (i <= gameDetails.thisGameWeek && j < gameDetails.months.length) {
-      if (i >= gameDetails.months[j].start_event && i <= gameDetails.months[j].stop_event) {
-        points = 0;
-        j++;
+    while (i <= gameDetails.thisGameWeek) {
+      logger.debug(player.player_name, i, j);
+      if (j < gameDetails.months.length) {
+        if (i >= gameDetails.months[j].start_event && i <= gameDetails.months[j].stop_event) {
+          points = 0;
+          j++;
+        }
       }
 
       points += player.weekScores[i].netScore;
@@ -525,6 +528,7 @@ const fpl = {
         if (player.team.indexOf(footballer) < 11) {
           footballer.subOut = true;
           player.subsOut.push(footballer);
+          logger.error(player.player_name, footballer.name, player.team.indexOf(footballer));
         }
       }
 
