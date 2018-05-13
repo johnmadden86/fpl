@@ -1,0 +1,21 @@
+<div class="ui column four wide">
+  <table class="ui selectable compact celled table">
+    <thead class="title">
+    <tr>
+      <th colspan="2">Used Chips</th>
+    </tr>
+    </thead>
+    <tbody>
+    {{#each players}}
+      <tr class="content">
+        <td>{{player_name}}</td>
+      <td>
+        {{#each usedChips}}
+          {{readableChip name}}&nbsp;
+        {{/each}}
+      </td>
+      </tr>
+    {{/each}}
+    </tbody>
+  </table>
+</div>

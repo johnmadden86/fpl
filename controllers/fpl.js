@@ -111,26 +111,27 @@ const fpl = {
           .then(response => {
             const body = response.data;
             let total = 0;
-            const power = 1 - 1 + gameDetails.thisGameWeek / 10;
+            const power = 1 + gameDetails.thisGameWeek / 10;
             for (let i = 1; i <= gameDetails.thisGameWeek; i++) {
               total += Math.pow(i, power);
             }
 
             footballer.weightedCreativity = 0;
             footballer.weightedThreat = 0;
+            footballer.scores = [];
             body.history.forEach(event => {
+              footballer.scores.push(event.total_points);
               footballer.weightedCreativity += Number(event.creativity) * Math.pow(event.round, power) / total;
               footballer.weightedThreat += Number(event.threat) * Math.pow(event.round, power) / total;
             });
+
             // logger.debug('got stats for ' + footballer.web_name + timeToLoad());
             footballer.rating =
               (footballer.weightedThreat * (8 - footballer.element_type)
                 + footballer.weightedCreativity * 3); // (footballer.now_cost / 100);
             delay--;
             if (delay === 0) {
-              footballers.sort((a, b) => {
-                return b.rating - a.rating;
-              });
+              footballers.sort((a, b) => b.rating - a.rating);
               footballers.forEach((player, index, players) => {
                 footballersList = players;
                 let position = '';
@@ -150,8 +151,32 @@ const fpl = {
                   default:
                     break;
                 }
-                if (player.element_type < 5 || player.now_cost <= 58) {
-                  logger.info(position, player.web_name, Math.round(player.rating) / 10);
+
+                const teams = [
+                  1, //Arsenal
+                  // 2, // Bournemouth
+                  3, // Brighton
+                  // 4, // Burnley
+                  5, // Chelsea
+                  // 6, // Crystal Palace
+                  // 7, // Everton
+                  8, // Huddersfield
+                  9, // Leicester
+                  // 10, // Liverpool
+                  11, // Man City
+                  12, // Man Utd
+                  13, // Newcastle
+                  14, // Southampton
+                  // 15, // Stoke
+                  16, // Swansea
+                  17, // Tottenham
+                  // 18, // Watford
+                  // 19, // West Brom
+                  20, // West Ham
+                ];
+
+                if (player.element_type === 2 && player.now_cost < 45) {
+                  // logger.info(position, player.web_name, Math.round(player.rating) / 10);
                 }
               });
             }
@@ -393,6 +418,7 @@ const fpl = {
   getScores(player) {
     request('entry/' + player.entry + '/history').then(response => {
       const body = response.data;
+      const chips = body.chips;
       const totalTransfers = body.entry.total_transfers;
       const details = body.history;
       let weekScores = {};
@@ -402,6 +428,8 @@ const fpl = {
           weekScores[gameWeek.event].points - weekScores[gameWeek.event].event_transfers_cost;
       });
 
+      player.usedChips = chips;
+      player.usedChips.number = chips.length;
       player.transferDetails.totalTransfers = totalTransfers;
       player.weekScores = weekScores;
       logger.info('retrieved scores for ' + player.player_name + timeToLoad());
@@ -418,7 +446,7 @@ const fpl = {
     let monthScore = {};
     let i = 1;
     let j = 1;
-    while (i < gameDetails.nextGameWeek) {
+    while (i <= gameDetails.thisGameWeek && j < gameDetails.months.length) {
       if (i >= gameDetails.months[j].start_event && i <= gameDetails.months[j].stop_event) {
         points = 0;
         j++;
@@ -507,6 +535,7 @@ const fpl = {
             if (footballer.liveScore) {
               player.liveWeekTotal += footballer.liveScore;
             }
+
             player.subsOut.splice(i, 1);
           }
         }
