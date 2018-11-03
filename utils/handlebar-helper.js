@@ -1,37 +1,28 @@
-'use strict';
+/** @format */
 
 const Handlebars = require('handlebars');
-const logger = require('./logger');
 
-Handlebars.registerHelper('blankIfZero', function (number) {
-  if (number !== 0) {
-    return '(' + number + ')';
-  }
-});
+Handlebars.registerHelper('blankIfZero', number => (number !== 0 ? `(${number})` : ''));
 
-Handlebars.registerHelper('noZero', function (number) {
-  return number === 0 ? 1 : number;
-});
+Handlebars.registerHelper('noZero', number => (number === 0 ? 1 : number));
 
-Handlebars.registerHelper('numberToPosition', function (number) {
+Handlebars.registerHelper('numberToPosition', number => {
   const positions = ['GK', 'DF', 'MF', 'FW'];
   return positions[number - 1];
 });
 
-Handlebars.registerHelper('readableChip', function (chip) {
+Handlebars.registerHelper('readableChip', chip => {
   switch (chip) {
     case 'wildcard':
       return 'Wildcard';
-      break;
     case 'freehit':
       return 'Free Hit';
-      break;
     case '3xc':
       return 'Triple Captain';
-      break;
     case 'bboost':
       return 'Bench Boost';
-      break;
+    default:
+      return null;
   }
 });
 

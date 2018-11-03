@@ -4,9 +4,9 @@
       <thead class="title">
       <tr>
         <th colspan="4">
-          {{player_name}}{{#if transferDetails.chip}}<br>({{readableChip transferDetails.chip}}){{/if}}<br>
+          {{player_name}}{{#if chip}}<br>({{readableChip chip}}){{/if}}<br>
           <span class="ui sub header">
-            Transfers: {{transferDetails.transfers}} &nbsp;{{blankIfZero transferDetails.pointsHit}}
+            Transfers: {{gameweekTransfers.length}} &nbsp;{{blankIfZero pointsHit}}
             <br>{{formation.d}}-{{formation.m}}-{{formation.f}}
             </span>
         </th>
@@ -14,7 +14,7 @@
       </tr>
       </thead>
       <tbody class="content">
-      {{#each team}}
+      {{#each picks}}
         <tr>
           <td><img class="ui avatar image" src="{{image}}" height="auto" width="auto"></td>
           <td>{{numberToPosition playingPosition}}</td>

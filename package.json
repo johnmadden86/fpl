@@ -2,21 +2,35 @@
   "description": "fpl log refactor",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "lint": "eslint .",
+    "fix": "eslint --fix ."
   },
   "dependencies": {
-    "axios": "^0.17.1",
-    "body-parser": "^1.18.2",
-    "express": "^4.15.4",
+    "axios": "^0.18.0",
+    "express": "^4.16.3",
     "express-handlebars": "^3.0.0",
     "handlebars": "latest",
-    "lowdb": "^1.0.0",
-    "winston": "^2.3.1"
+    "prettier": "^1.14.2",
+    "winston": "^3.0.0"
+  },
+  "devDependencies": {
+    "babel-eslint": "^8.2.6",
+    "chai": "^4.1.2",
+    "eslint": "^5.3.0",
+    "eslint-config-airbnb-base": "^13.1.0",
+    "eslint-config-prettier": "^2.10.0",
+    "eslint-plugin-import": "^2.14.0",
+    "eslint-plugin-prettier": "^2.6.2",
+    "mocha": "^5.2.0",
+    "prettier": "^1.14.2",
+    "sync-request": "^6.0.0"
   },
   "engines": {
-    "node": "8.x"
+    "node": "10.x"
   },
   "repository": {
     "url": "https://github.com/johnmadden86/fpl"
-  }
+  },
+  "license": "MIT"
 }
