@@ -311,7 +311,11 @@ const fpl = {
       gameweekScores.push(netScore);
     }
 
-    if (history.length === staticData.currentGw) {
+    for (let i = history.length; i < staticData.currentGw.id; i += 1) {
+      gameweekScores.unshift(0);
+    }
+
+    if (gameweekScores.length === staticData.currentGw.id) {
       gameweekScores[staticData.currentGw - 1] = user.liveWeekTotal;
     } else {
       gameweekScores.push(user.liveWeekTotal);
