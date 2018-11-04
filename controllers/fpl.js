@@ -315,10 +315,12 @@ const fpl = {
       gameweekScores.unshift(0);
     }
 
+    const netScore = user.liveWeekTotal + user.pointsHit;
+
     if (gameweekScores.length === staticData.currentGw.id) {
-      gameweekScores[staticData.currentGw - 1] = user.liveWeekTotal;
+      gameweekScores[staticData.currentGw.id - 1] = netScore;
     } else {
-      gameweekScores.push(user.liveWeekTotal);
+      gameweekScores.push(netScore);
     }
 
     const phaseScores = [];
