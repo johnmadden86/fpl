@@ -1,13 +1,11 @@
+/** @format */
+
 const express = require('express');
 // const logger = require('./utils/logger');
 const exphbs = require('express-handlebars');
 
 const app = express();
-app.engine('.hbs', exphbs({
-    extname: '.hbs',
-    defaultLayout: 'main'
-  })
-);
+app.engine('.hbs', exphbs({ extname: '.hbs', defaultLayout: 'main' }));
 app.set('view engine', '.hbs');
 const routes = require('./routes');
 

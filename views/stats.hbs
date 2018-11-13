@@ -1,0 +1,32 @@
+<table class="ui compact table">
+  <thead class="title">
+  <tr>
+    <th>Player</th>
+    <th>Total</th>
+    <th>Per Game</th>
+    <th>Per 90 mins</th>
+    <th>Home</th>
+    <th>Away</th>
+    <th>Top 6</th>
+    <!--th>Bottom 14</th-->
+    <th>Form</th>
+    <th>Value</th>
+  </tr>
+  </thead>
+  <tbody class="content">
+  {{#each footballers}}
+    <tr>
+      <td><img class="ui avatar image" src="{{image}}" height="auto" width="auto"> {{web_name}}</td>
+      <td>{{rating.total}}</td>
+      <td>{{rating.perGame}}</td>
+      <td>{{rating.per90mins}}</td>
+      <td>{{rating.perHomeGame}}</td>
+      <td>{{rating.perAwayGame}}</td>
+      <td>{{rating.perTop6Game}}</td>
+      <!--td>{{rating.perBottom14Game}}</td-->
+      <td>{{rating.form}}</td>
+      <td>{{rating.value}}</td>
+    </tr>
+  {{/each}}
+  </tbody>
+</table>

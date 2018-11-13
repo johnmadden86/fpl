@@ -1,131 +1,244 @@
 /** @format */
 
 const axios = require('axios');
+const axiosRetry = require('axios-retry');
+const singleLineLog = require('log-update');
+
 // eslint-disable-next-line no-unused-vars
 const Handlebars = require('../utils/handlebar-helper');
 
 const leagueCode = 484626;
 
+let nextUpdate;
+
 let time = new Date();
-function timeToLoad() {
+const timeToLoad = () => {
   let ttl = new Date() - time;
   ttl /= 1000;
   return ` in ${ttl} secs`;
-}
+};
 
 const imageUrl = code =>
   `https://platform-static-files.s3.amazonaws.com/premierleague/photos/players/110x140/p${code}.png`;
 
-// let cup;
-// let cupTables = [];
-let liveScoreCounter;
+const sumArray = array => (array.length === 0 ? 0 : array.reduce((tot, val) => tot + val));
+
+const meanArray = array => {
+  if (array.length === 0) {
+    return 0;
+  }
+  return array.reduce((tot, val, index, arr) => {
+    let r = tot;
+    r += val;
+
+    if (index === arr.length - 1) {
+      return r / arr.length;
+    }
+    return r;
+  });
+};
+
 const loading = false;
-const request = axios.create({
-  baseURL: 'https://fantasy.premierleague.com/drf/',
-  method: 'GET'
-});
+
+const req = async url => {
+  const fplRequest = axios.create({
+    baseURL: 'https://fantasy.premierleague.com/drf/',
+    method: 'GET'
+  });
+  axiosRetry(fplRequest, { retries: 10 });
+  return (await fplRequest(url)).data;
+};
 
 let staticData;
+const leagueData = {};
 
-const arrToObj = arr => arr.reduce((obj, elem) => ({ ...obj, [elem.id]: elem }), {});
-
-let users;
+// const arrToObj = arr => arr.reduce((obj, elem) => ({ ...obj, [elem.id]: elem }), {});
 
 const fpl = {
-  /*
-  * Retrieve and assemble the data every 5 mins
-  * --> get static data
-  */
+  // first Run
+  // weekly run
+  // live match run
+
   runApp() {
-    function run() {
-      console.log('runApp');
+    const run = async () => {
       time = new Date();
-      fpl.getStaticData();
-    }
+      staticData = await fpl.getStaticData();
+      const thirtyMins = 60 * 30;
+      nextUpdate = new Date(
+        (staticData.nextGw.deadline_time_epoch - staticData.nextGw.deadline_time_game_offset + thirtyMins) * 1000
+      );
+      const footballers = await fpl.getFootballers();
+      const live = await fpl.liveFootballerScores(footballers);
+      console.log(`Live scores gathered for ${live} footballers${timeToLoad()}`);
+      staticData.footballers = footballers;
+      leagueData.users = await fpl.getLeagueData(leagueCode);
+    };
     try {
+      // console.log(time);
       run();
-      setInterval(run, 1000 * 60 * 5);
+      // setInterval(run, 1000 * 60 * 5);
     } catch (e) {
       throw e;
     }
   },
 
   /*
-  * Retrieve and assemble the game's "static" data
-  * --> live footballer scores
-  * --> get league data
-  */
+   * Retrieve and assemble the game's "static" data
+   */
   async getStaticData() {
     try {
-      console.log('getStaticData');
-      const footballers = arrToObj((await request('elements')).data);
-      // console.log(`${Object.keys(footballers).length} footballers loaded in${timeToLoad()}`);
-      const events = (await request('events')).data;
-      // console.log(`${events.length} events loaded in${timeToLoad()}`);
+      const events = await req('events');
+      console.log(`${events.length} events loaded in${timeToLoad()}`);
       const currentGw = events.find(e => e.is_current === true);
       const nextGw = events.find(e => e.is_next === true);
-      // console.log(`Current Gameweek: ${currentGw.id}, Next Gameweek: ${nextGw.id}`);
-      // fixtures = (await request('fixtures')).data;
-      const phases = (await request('phases')).data;
-      // console.log(`${phases.length} phases loaded in${timeToLoad()}`);
-      phases.forEach(phase => {
-        phase.table = {
-          name: phase.name,
-          entries: []
-        };
-      });
+      console.log(`Current Gameweek: ${currentGw.id}, Next Gameweek: ${nextGw.id}`);
+      const fixtures = await req('fixtures');
+      console.log(`${fixtures.length} fixtures loaded in${timeToLoad()}`);
+      const phases = await req('phases');
+      console.log(`${phases.length} phases loaded in${timeToLoad()}`);
+      for (const phase of phases) {
+        phase.table = { name: phase.name, entries: [] };
+      }
       // teams = (await request('teams')).data;
+      return { events, currentGw, nextGw, phases, fixtures };
+    } catch (e) {
+      throw e;
+    }
+  },
 
-      staticData = { footballers, events, currentGw, nextGw, phases };
+  async getFootballers() {
+    try {
+      const footballers = await req('elements');
+      footballers.map(footballer => Object.assign(footballer, { image: imageUrl(footballer.code) }));
+      console.log(`${Object.keys(footballers).length} footballers loaded in${timeToLoad()}`);
 
-      await this.liveFootballerScores(footballers);
-      // console.log(footballers);
-      this.getLeagueData(leagueCode);
+      let i = 1;
+      const activeFootballers = footballers.filter(f => f.minutes > 900 && f.element_type > 3);
+      const maxNameLength = Math.max(...activeFootballers.map(f => f.web_name.length));
+
+      const getRating = async footballer => {
+        const rating = await this.getStats(footballer);
+        // console.log(`Stats gathered for ${footballer.web_name} ${i}/${footballers.length}`);
+        singleLineLog(
+          `Stats gathered for ${footballer.web_name.padEnd(maxNameLength)} ${i}/${activeFootballers.length}`
+        );
+        Object.assign(footballer, { rating });
+        if (i === activeFootballers.length) {
+          singleLineLog.clear();
+          console.log(
+            `Stats for ${activeFootballers.filter(p => p.rating).length} footballers gathered${timeToLoad()}`
+          );
+        }
+        i += 1;
+      };
+      const tasks = [];
+      for (const footballer of activeFootballers) {
+        tasks.push(getRating(footballer));
+      }
+      await Promise.all(tasks);
+      return footballers;
+    } catch (e) {
+      throw e;
+    }
+  },
+
+  async getStats(footballer) {
+    try {
+      const games = (await req(`element-summary/${footballer.id}`)).history;
+      const pointsPerGoal = footballer.element_type <= 2 ? 6 : 8 - footballer.element_type;
+      const top6 = [1, 6, 12, 13, 14, 17];
+      games.forEach(game => {
+        const p = 1 + game.round / 10;
+        game.formWeight = p ** p;
+        game.attackRating = game.threat * pointsPerGoal + game.creativity * 3;
+      });
+
+      const gamesPlayedIn = games.filter(game => game.minutes > 0);
+      const homeGames = gamesPlayedIn.filter(game => game.was_home && !top6.includes(game.opponent_team));
+      const awayGames = gamesPlayedIn.filter(game => !game.was_home && !top6.includes(game.opponent_team));
+      const top6Games = gamesPlayedIn.filter(game => top6.includes(game.opponent_team));
+      // const bottom14Games = gamesPlayedIn.filter(game => !top6.includes(game.opponent_team));
+
+      const attackRatings = gamesPlayedIn.map(game => game.attackRating);
+      const attackRatingsWeighted = games.map(game => game.attackRating * game.formWeight);
+
+      const homeAttackRatings = homeGames.map(game => game.attackRating * game.formWeight);
+      const awayAttackRatings = awayGames.map(game => game.attackRating * game.formWeight);
+      const top6AttackRatings = top6Games.map(game => game.attackRating * game.formWeight);
+      // const bottom14AttackRatings = bottom14Games.map(game => game.attackRating);
+      const formWeights = games.map(game => game.formWeight);
+      const formWeightsH = homeGames.map(game => game.formWeight);
+      const formWeightsA = awayGames.map(game => game.formWeight);
+      const formWeights6 = top6Games.map(game => game.formWeight);
+
+      const total = Math.round(sumArray(attackRatings));
+      const form = Math.round(sumArray(attackRatingsWeighted) / sumArray(formWeights));
+
+      const perHomeGame = Math.round(sumArray(homeAttackRatings) / sumArray(formWeightsH));
+      const perAwayGame = Math.round(sumArray(awayAttackRatings) / sumArray(formWeightsA)); // perHomeGame);
+      const perTop6Game = Math.round(sumArray(top6AttackRatings) / sumArray(formWeights6)); // perHomeGame);
+
+      return {
+        total,
+        perGame: Math.round(meanArray(attackRatings)),
+        per90mins: footballer.minutes === 0 ? 0 : Math.round((90 * total) / footballer.minutes),
+        perHomeGame,
+        perAwayGame,
+        perTop6Game,
+        // perBottom14Game: Math.round(meanArray(bottom14AttackRatings)),
+        form,
+        value: Math.round(form / (footballer.now_cost / 100)) / 10
+      };
     } catch (e) {
       throw e;
     }
   },
 
   /*
-  * Calculate live matchday scores
-  * --> get bonus
-  * --> apply bonus
-  */
+   * Calculate live matchday scores
+   * --> get bonus
+   * --> apply bonus
+   */
   // eslint-disable-next-line no-shadow
   async liveFootballerScores(footballers) {
     try {
-      console.log('liveFootballerScores');
-      const { elements, fixtures } = (await request(`event/${staticData.currentGw.id}/live`)).data;
-      Object.keys(footballers).forEach(footballer => {
-        const { explain, stats } = elements[footballer];
+      const { elements, fixtures } = await req(`event/${staticData.currentGw.id}/live`);
+      const fixturesInProgress = fixtures.filter(f => f.started && !f.finished_provisional);
+      const fixtureKickOffTimes = fixtures.map(f => new Date(f.kickoff_time));
+      console.log(fixtureKickOffTimes);
+      console.log(new Date());
+      for (const footballer of footballers) {
+        const { explain, stats } = elements[footballer.id];
         const fixtureId = explain[0][1];
         const details = explain[0][0];
         const minutes = details.minutes.value;
-        const didNotPlay = minutes === 0;
-        const points = stats.total_points;
         const fixture = fixtures.find(f => f.id === fixtureId);
         if (fixture.started) {
-          footballers[footballer].liveScore = didNotPlay ? '-' : points;
+          footballer.didNotPlay = minutes === 0;
+          footballer.liveScore = /* didNotPlay ? '-' : */ stats.total_points;
         }
-      });
+      }
 
-      fixtures.forEach(f => {
-        const bonusApplied = f.stats[8] && f.stats[8].bonus.a.length + f.stats[8].bonus.h.length > 0;
-        if (!bonusApplied) {
-          const bonus = this.getBonus(f);
+      for (const fixture of fixtures) {
+        let bonusApplied = fixture.stats[8];
+        if (bonusApplied) {
+          bonusApplied = fixture.stats[8].bonus.a.length + fixture.stats[8].bonus.h.length > 0;
+        }
+        if (!bonusApplied && fixture.started) {
+          const bonus = this.getBonus(fixture);
           this.applyBonus(footballers, bonus);
         }
-      });
+      }
 
-      console.log('live data gathered');
+      return footballers.filter(footballer => footballer.liveScore).length;
     } catch (e) {
       throw e;
     }
   },
 
   /*
-  * Returns the players that have scored bonus points
-  */
+   * Returns the players that have scored bonus points
+   */
   getBonus(fixture) {
     const three = [];
     const two = [];
@@ -145,12 +258,12 @@ const fpl = {
         i += 1;
       }
 
-      while (threeBonusCount === 1 && bps[threeBonusCount].value === bps[i].value) {
+      while (threeBonusCount === 1 && bps[1].value === bps[i].value) {
         twoBonusCount += 1;
         i += 1;
       }
 
-      while (threeBonusCount + twoBonusCount === 2 && bps[threeBonusCount + twoBonusCount].value === bps[i].value) {
+      while (threeBonusCount + twoBonusCount === 2 && bps[2].value === bps[i].value) {
         oneBonusCount += 1;
         i += 1;
       }
@@ -159,140 +272,128 @@ const fpl = {
       while (j < threeBonusCount) {
         three.push(bps[j].element);
         j += 1;
-        while (j < threeBonusCount + twoBonusCount) {
-          two.push(bps[j].element);
-          j += 1;
-          while (j < threeBonusCount + twoBonusCount + oneBonusCount) {
-            one.push(bps[j].element);
-            j += 1;
-          }
-        }
+      }
+      while (j < threeBonusCount + twoBonusCount) {
+        two.push(bps[j].element);
+        j += 1;
+      }
+      while (j < threeBonusCount + twoBonusCount + oneBonusCount) {
+        one.push(bps[j].element);
+        j += 1;
       }
     }
 
-    return {
-      three,
-      two,
-      one
-    };
+    return [one, two, three];
   },
 
   /*
-  * Adds bonus points to footballer's live total
-  */
+   * Adds bonus points to footballer's live total
+   */
   applyBonus(footballers, bonus) {
-    for (let i = 0; i < bonus.three.length; i += 1) {
-      bonus.three.forEach(element => {
-        footballers[element].liveScore += 3;
-      });
+    function apply(arr, points) {
+      for (const element of arr) {
+        const footballer = footballers.find(f => f.id === element);
+        footballer.liveScore += points;
+      }
     }
 
-    for (let i = 0; i < bonus.two.length; i += 1) {
-      bonus.two.forEach(element => {
-        footballers[element].liveScore += 2;
-      });
-    }
-
-    for (let i = 0; i < bonus.one.length; i += 1) {
-      bonus.one.forEach(element => {
-        footballers[element].liveScore += 1;
-      });
+    for (let i = 0; i < bonus.length; i += 1) {
+      apply(bonus[i], i + 1);
     }
   },
 
   /*
-  * Get user data for league
-  * --> get user data
-  */
+   * Get user data for league
+   * --> get user data
+   */
   async getLeagueData(leagueId) {
     try {
-      users = (await request(`leagues-classic-standings/${leagueId}`)).data.standings.results;
-      console.log(`${users.length} users retrieved${timeToLoad()}`);
-      await users.forEach((user, index) => {
-        // users[index].prizeMoney = 0;
+      const users = (await req(`leagues-classic-standings/${leagueId}`)).standings.results;
+      const maxNameLength = Math.max(...users.map(u => u.player_name.length));
+      let i = 1;
+      const getUserDetails = async user => {
+        const tableEntries = await this.getUserData(user);
+        tableEntries.forEach((entry, index) => {
+          staticData.phases[index].table.entries.push(entry);
+        });
+        singleLineLog(
+          `Data gathered for ${user.player_name.padEnd(maxNameLength)} ${i}/${users.length}${timeToLoad()}`
+        );
+        if (i === users.length) {
+          singleLineLog.clear();
+          console.log(`${users.length} users retrieved${timeToLoad()}`);
+        }
+        i += 1;
+      };
 
-        // console.log(`Getting data for ${user.player_name}${timeToLoad()}`);
-        this.getUserData(user);
-      });
+      const tasks = [];
+      for (const user of users) {
+        tasks.push(getUserDetails(user));
+      }
+      await Promise.all(tasks);
+      return users;
     } catch (e) {
       throw e;
     }
   },
 
   /*
-  * get individual user data
-  * --> get user picks for gameweek
-  * --> get user scores
-  * --> get user transfers
-  */
+   * get individual user data
+   * --> get user picks for gameweek
+   * --> get user scores
+   * --> get user transfers
+   * --> get formation
+   */
   async getUserData(user) {
     try {
       const id = user.entry;
-      // console.log(`Getting picks for ${user.player_name}${timeToLoad()}`);
-      const { picks, captain, useViceCaptain, chip, pointsHit, subsOut } = await this.userPicks(id);
-      user.picks = picks;
-      user.captain = captain;
-      user.chip = chip;
-      user.pointsHit = pointsHit;
-      user.subsOut = subsOut;
-      user.liveWeekTotal = this.userLiveScores(user);
-
-      // console.log(`Getting scores for ${user.player_name}${timeToLoad()}`);
-      const { phaseScores, totalTransfers } = await this.userScores(user);
-      const tableEntries = phaseScores.map(score => ({ name: user.player_name, score }));
-      tableEntries.forEach((entry, index) => {
-        staticData.phases[index].table.entries.push(entry);
-      });
-      user.phaseScores = phaseScores;
-      // console.log(`Getting transfers for ${user.player_name}${timeToLoad()}`);
-      user.gameweekTransfers = await this.userTransfers(id);
-      user.formation = this.getFormation(picks);
+      Object.assign(user, await this.userPicks(id), { gameweekTransfers: await this.userTransfers(id) });
+      Object.assign(user, { formation: this.getFormation(user.picks) }, { liveWeekTotal: this.userLiveScores(user) });
+      Object.assign(user, await this.userScores(user));
+      return user.phaseScores.map(score => ({ name: user.player_name, score }));
     } catch (e) {
       throw e;
     }
   },
 
+  /*
+   * get user gameweek picks
+   */
   async userPicks(id) {
     try {
       // eslint-disable-next-line camelcase
-      const { active_chip, entry_history, picks } = (await request(
-        `entry/${id}/event/${staticData.currentGw.id}/picks`
-      )).data;
+      const { active_chip, entry_history, picks } = await req(`entry/${id}/event/${staticData.currentGw.id}/picks`);
       // eslint-disable-next-line camelcase
       const pointsHit = entry_history.event_transfers_cost * -1;
       let captain;
       let useViceCaptain = false;
+      let viceCaptainScore;
       // eslint-disable-next-line camelcase
       const chip = active_chip;
-      const multiplier = chip === '3xc' ? 3 : 2;
       const subsOut = [];
-      picks.forEach(footballer => {
-        footballer.name = staticData.footballers[footballer.element].web_name;
-        footballer.image = imageUrl(staticData.footballers[footballer.element].code);
-        footballer.playingPosition = staticData.footballers[footballer.element].element_type;
-        footballer.didNotPlay = staticData.footballers[footballer.element].didNotPlay;
-        if (footballer.didNotPlay && footballer.position < 11 && subsOut.length < 4) {
-          subsOut.push(footballer);
+      for (const pick of picks) {
+        const footballer = staticData.footballers.find(f => f.id === pick.element);
+        Object.assign(pick, footballer);
+        if (pick.didNotPlay && pick.position < 11) {
+          subsOut.push(pick);
         }
-        footballer.liveScore = staticData.footballers[footballer.element].liveScore;
-        if (footballer.is_captain) {
-          captain = footballer.name;
-          if (footballer.didNotPlay) {
+        pick.liveScore *= pick.multiplier;
+        if (pick.is_captain) {
+          captain = pick.web_name;
+          if (pick.didNotPlay) {
             useViceCaptain = true;
-          } else if (typeof footballer.liveScore === 'number') {
-            footballer.liveScore *= multiplier;
           }
         }
-        if (useViceCaptain && footballer.is_vice_captain && typeof footballer.liveScore === 'number') {
-          footballer.liveScore *= multiplier;
+        if (pick.is_vice_captain) {
+          viceCaptainScore = pick.liveScore;
         }
-      });
+      }
       picks.sort((a, b) => a.position - b.position);
-
       return {
         picks,
         captain,
         useViceCaptain,
+        viceCaptainScore,
         chip,
         pointsHit,
         subsOut
@@ -302,8 +403,11 @@ const fpl = {
     }
   },
 
+  /*
+   * get user phase scores
+   */
   async userScores(user) {
-    const { history, entry } = (await request(`entry/${user.entry}/history`)).data;
+    const { history, entry } = await req(`entry/${user.entry}/history`);
     const totalTransfers = entry.total_transfers;
     const gameweekScores = [];
     for (let i = 0; i < history.length; i += 1) {
@@ -324,7 +428,7 @@ const fpl = {
     }
 
     const phaseScores = [];
-    staticData.phases.forEach(phase => {
+    for (const phase of staticData.phases) {
       const start = phase.start_event - 1;
       const end = phase.stop_event;
       const scores = gameweekScores.slice(start, end);
@@ -332,298 +436,86 @@ const fpl = {
         const score = scores.reduce((tot, val) => tot + val);
         phaseScores.push(score);
       }
-    });
+    }
 
     return { phaseScores, totalTransfers };
   },
 
+  /*
+   *
+   * get user transfers
+   */
   async userTransfers(id) {
-    const { history } = (await request(`entry/${id}/transfers`)).data;
+    const { history } = await req(`entry/${id}/transfers`);
     const gameweekTransfers = history.filter(transfer => transfer.event === staticData.currentGw.id);
-    gameweekTransfers.forEach(transfer => {
-      transfer.playerIn = staticData.footballers[transfer.element_in].web_name;
-      transfer.playerOut = staticData.footballers[transfer.element_out].web_name;
-    });
+    for (const transfer of gameweekTransfers) {
+      transfer.playerIn = staticData.footballers.find(f => f.id === transfer.element_in).web_name;
+      transfer.playerOut = staticData.footballers.find(f => f.id === transfer.element_out).web_name;
+    }
     return gameweekTransfers;
   },
 
-  getFormation(team) {
-    let gk = 0;
-    let df = 0;
-    let mf = 0;
-    let fw = 0;
-    let j = 0;
-    while (team[j].playingPosition === 1) {
-      gk += 1;
-      j += 1;
-    }
-
-    while (team[j].playingPosition === 2) {
-      df += 1;
-      j += 1;
-    }
-
-    while (team[j].playingPosition === 3) {
-      mf += 1;
-      j += 1;
-    }
-
-    while (team[j].playingPosition === 4) {
-      fw += 1;
-      j += 1;
-    }
-
-    return {
-      g: gk,
-      d: df,
-      m: mf,
-      f: fw
-    };
+  /*
+   * get formation
+   * */
+  getFormation(squad) {
+    const team = squad.slice(0, 11);
+    const gk = team.filter(player => player.element_type === 1).length;
+    const df = team.filter(player => player.element_type === 2).length;
+    const mf = team.filter(player => player.element_type === 3).length;
+    const fw = team.filter(player => player.element_type === 4).length;
+    return { g: gk, d: df, m: mf, f: fw };
   },
 
-  // DNP gk
-  // DNP 0
-  // DNP 1
-  // DNP 2
-  // DNP >= 3
-  // bboost
-
+  /* get live gameweek scores */
   userLiveScores(user) {
-    const { picks } = user;
-    const scorers = picks.filter(pick => typeof pick.liveScore === 'number' && pick.position <= 11);
+    const validFormation = formation => {
+      const eleven = formation.g + formation.d + formation.m + formation.f === 11;
+      const positions = formation.g === 1 && formation.d >= 3 && formation.f >= 1;
+      return eleven && positions;
+    };
+    const swap = (arr, i, j) => {
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    };
+
+    const { picks, subsOut, chip, useViceCaptain, viceCaptainScore } = user;
+    if (chip === 'bboost') {
+      return sumArray(picks.map(p => p.liveScore));
+    }
+    const squad = Object.assign([], picks);
+    const subsIn = squad.slice(11);
+
+    for (const subOut of subsOut) {
+      let i = 0;
+      while (i < subsIn.length) {
+        if (!subsIn[i].didNotPlay) {
+          swap(squad, subOut.position - 1, subsIn[i].position - 1);
+          if (validFormation(this.getFormation(squad))) {
+            console.log(`Out: ${subOut.web_name}`, `In: ${subsIn[i].web_name}`);
+            picks.find(p => p.element === subOut.element).subOut = true;
+            picks.find(p => p.element === subsIn[i].element).subIn = true;
+            subsIn.splice(i, 1);
+            break;
+          }
+          swap(squad, subsIn[i].position - 1, subOut.position - 1);
+        }
+        i += 1;
+      }
+    }
+
+    const scorers = squad.slice(0, 11);
     const scores = scorers.map(scorer => scorer.liveScore);
-    console.log(scores);
-    const score = scores.reduce((tot, val) => tot + val);
-    console.log(score);
-    const formation = this.getFormation(picks);
-    console.log(formation);
-    console.log(user.subsOut);
+    let score = sumArray(scores);
+    if (useViceCaptain) {
+      score += viceCaptainScore;
+      if (chip === '3xc') {
+        score += viceCaptainScore;
+      }
+    }
     return score;
-
-    function validFormation() {
-      const eleven = formation.g + formation.d + formation.m + formation.f === 11;
-      const positions = formation.g === 1 && formation.d >= 3 && formation.f >= 1;
-      return eleven && positions;
-    }
-
-    function checkSub(footballerOut, footballerIn) {
-      switch (footballerOut.playingPosition) {
-        case 1:
-          formation.g -= 1;
-          break;
-        case 2:
-          formation.d -= 1;
-          break;
-        case 3:
-          formation.m -= 1;
-          break;
-        case 4:
-          formation.f -= 1;
-          break;
-        default:
-          break;
-      }
-
-      switch (footballerIn.playingPosition) {
-        case 1:
-          formation.g += 1;
-          break;
-        case 2:
-          formation.d += 1;
-          break;
-        case 3:
-          formation.m += 1;
-          break;
-        case 4:
-          formation.f += 1;
-          break;
-        default:
-          break;
-      }
-      return validFormation();
-    }
-
-    if (footballer.liveScore) {
-      footballer.liveScore *= footballer.multiplier;
-      if (user.team.indexOf(footballer) < 11 || user.transferDetails.chip === 'bboost') {
-        user.liveWeekTotal += footballer.liveScore;
-      }
-    }
-
-    if (user.transferDetails.chip !== 'bboost') {
-      if (footballer.didNotPlay) {
-        footballer.didNotPlay = true;
-        footballer.liveScore = '-';
-        if (user.team.indexOf(footballer) < 11) {
-          footballer.subOut = true;
-          user.subsOut.push(footballer);
-        }
-      }
-
-      if (user.subsOut.length > 0 && user.team.indexOf(footballer) > 10 && !footballer.didNotPlay) {
-        for (let i = 0; i < user.subsOut.length; i += 1) {
-          if (checkSub(user.subsOut[i], footballer)) {
-            footballer.subIn = true;
-            if (footballer.liveScore) {
-              player.liveWeekTotal += footballer.liveScore;
-            }
-            player.subsOut.splice(i, 1);
-          }
-        }
-      }
-    }
   },
 
-  getStats(footballersArray) {
-    let timeout = 0;
-    let delay = footballersArray.length;
-    footballersArray.forEach((footballer, index, array) => {
-      setTimeout(() => {
-        request(`element-summary/${footballer.id}`)
-          .then(response => {
-            const body = response.data;
-            let total = 0;
-            const power = 1 - 1 + gameDetails.thisGameWeek / 10;
-            for (let i = 1; i <= gameDetails.thisGameWeek; i += 1) {
-              total += i ** power;
-            }
-
-            footballer.weightedCreativity = 0;
-            footballer.weightedThreat = 0;
-            body.history.forEach(event => {
-              footballer.weightedCreativity += (Number(event.creativity) * event.round ** power) / total;
-              footballer.weightedThreat += (Number(event.threat) * event.round ** power) / total;
-            });
-            // logger.debug('got stats for ' + footballer.web_name + timeToLoad());
-            footballer.rating =
-              footballer.weightedThreat * (8 - footballer.element_type) + footballer.weightedCreativity * 3; // (footballer.now_cost/10);
-            delay -= 1;
-            if (delay === 0) {
-              array.sort((a, b) => b.rating - a.rating);
-              array.forEach(player => {
-                let position = '';
-                switch (player.element_type) {
-                  case 1:
-                    position = '\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tGK';
-                    break;
-                  case 2:
-                    position = '\t\t\t\t\t\t\t\t\t\t\t\tDF';
-                    break;
-                  case 3:
-                    position = '\t\t\t\t\t\tMF';
-                    break;
-                  case 4:
-                    position = 'FW';
-                    break;
-                  default:
-                    break;
-                }
-                if (player.element_type === 3 && player.now_cost < 49) {
-                  console.log(position, player.web_name, Math.round(player.rating) / 10);
-                }
-              });
-            }
-          })
-          .catch(err => {
-            console.error(`error retrieving stats for ${footballer.web_name}\n${err}`);
-          });
-      }, timeout);
-      timeout += 30;
-    });
-  },
-
-  getLiveScores(player, footballer) {
-    const formation = this.getFormation(player.team);
-
-    function validFormation() {
-      const eleven = formation.g + formation.d + formation.m + formation.f === 11;
-      const positions = formation.g === 1 && formation.d >= 3 && formation.f >= 1;
-      return eleven && positions;
-    }
-
-    function checkSub(footballerOut, footballerIn) {
-      switch (footballerOut.playingPosition) {
-        case 1:
-          formation.g -= 1;
-          break;
-        case 2:
-          formation.d -= 1;
-          break;
-        case 3:
-          formation.m -= 1;
-          break;
-        case 4:
-          formation.f -= 1;
-          break;
-        default:
-          break;
-      }
-
-      switch (footballerIn.playingPosition) {
-        case 1:
-          formation.g += 1;
-          break;
-        case 2:
-          formation.d += 1;
-          break;
-        case 3:
-          formation.m += 1;
-          break;
-        case 4:
-          formation.f += 1;
-          break;
-        default:
-          break;
-      }
-      return validFormation();
-    }
-
-    if (footballer.liveScore) {
-      footballer.liveScore *= footballer.multiplier;
-      if (player.team.indexOf(footballer) < 11 || player.transferDetails.chip === 'bboost') {
-        player.liveWeekTotal += footballer.liveScore;
-      }
-    }
-
-    if (player.transferDetails.chip !== 'bboost') {
-      if (footballer.didNotPlay) {
-        footballer.didNotPlay = true;
-        footballer.liveScore = '-';
-        if (player.team.indexOf(footballer) < 11) {
-          footballer.subOut = true;
-          player.subsOut.push(footballer);
-        }
-      }
-
-      if (player.subsOut.length > 0 && player.team.indexOf(footballer) > 10 && !footballer.didNotPlay) {
-        for (let i = 0; i < player.subsOut.length; i += 1) {
-          if (checkSub(player.subsOut[i], footballer)) {
-            footballer.subIn = true;
-            if (footballer.liveScore) {
-              player.liveWeekTotal += footballer.liveScore;
-            }
-            player.subsOut.splice(i, 1);
-          }
-        }
-      }
-    }
-
-    player.weekScores[gameDetails.thisGameWeek].points = player.liveWeekTotal;
-    player.weekScores[gameDetails.thisGameWeek].netScore =
-      player.liveWeekTotal - player.weekScores[gameDetails.thisGameWeek].event_transfers_cost;
-
-    console.log(`Live scores retrieved for ${player.player_name} (${footballer.position}/15)${timeToLoad()}`);
-
-    this.getMonthScores(player);
-    liveScoreCounter += 1;
-    if (liveScoreCounter === Object.keys(players).length * 15) {
-      tables = [];
-      this.createTables();
-      this.overallTable();
-    }
-  },
-
-  index(req, response) {
+  index(r, response) {
     const tables = staticData.phases.map(phase => phase.table).filter(table => table.entries.length > 0);
     tables.forEach((table, index) => {
       table.entries.sort((a, b) => b.score - a.score);
@@ -637,14 +529,28 @@ const fpl = {
         table.entries[0].prize = 20;
       }
     });
-    const viewData = {
+    const data = {
       title: 'Fantasy Football',
-      players: users,
+      players: leagueData.users,
       tables,
       loading
     };
 
-    response.render('index', viewData);
+    response.render('index', data);
+  },
+
+  stats(r, response) {
+    const data = {
+      title: 'Stats',
+      footballers: Object.values(staticData.footballers).filter(f => f.rating)
+    };
+    data.footballers.sort((a, b) => {
+      if (a.team === b.team) {
+        return b.total_points - a.total_points;
+      }
+      return a.team - b.team;
+    });
+    response.render('stats', data);
   }
 };
 

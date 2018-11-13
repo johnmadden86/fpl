@@ -17,12 +17,12 @@
       {{#each picks}}
         <tr>
           <td><img class="ui avatar image" src="{{image}}" height="auto" width="auto"></td>
-          <td>{{numberToPosition playingPosition}}</td>
+          <td>{{numberToPosition element_type}}</td>
           <td>
             {{#if subOut}}<i class="red chevron circle down icon"></i>{{/if}}
             {{#if subIn}}<i class="green chevron circle up icon"></i>{{/if}}
           </td>
-          <td>{{name}}
+          <td>{{web_name}}
             {{#if is_captain}}  (c){{/if}}
             {{#if is_vice_captain}}  (v){{/if}}
           </td>
