@@ -9,8 +9,6 @@ const Handlebars = require('../utils/handlebar-helper');
 
 const leagueCode = 484626;
 
-let nextUpdate;
-
 let time = new Date();
 const timeToLoad = () => {
   let ttl = new Date() - time;
@@ -38,45 +36,83 @@ const meanArray = array => {
   });
 };
 
-const loading = false;
+let loading;
 
 const req = async url => {
   const fplRequest = axios.create({
     baseURL: 'https://fantasy.premierleague.com/drf/',
     method: 'GET'
   });
-  axiosRetry(fplRequest, { retries: 10 });
+  axiosRetry(fplRequest, { retries: 10, retryDelay: axiosRetry.exponentialDelay });
   return (await fplRequest(url)).data;
 };
 
 let staticData;
-const leagueData = {};
+const leagueData = { users: [] };
 
 // const arrToObj = arr => arr.reduce((obj, elem) => ({ ...obj, [elem.id]: elem }), {});
 
 const fpl = {
-  // first Run
-  // weekly run
-  // live match run
-
-  runApp() {
-    const run = async () => {
+  async runApp() {
+    const liveUpdate = async () => {
+      const fixtureKickOffTimes = await fpl.liveFootballerScores(staticData.footballers);
+      console.log(`Live scores gathered for ${staticData.footballers.length} footballers${timeToLoad()}`);
+      return fixtureKickOffTimes;
+    };
+    const weekly = async () => {
+      loading = true;
       time = new Date();
       staticData = await fpl.getStaticData();
+      // eslint-disable-next-line camelcase
+      const { deadline_time_epoch, deadline_time_game_offset } = staticData.nextGw;
       const thirtyMins = 60 * 30;
-      nextUpdate = new Date(
-        (staticData.nextGw.deadline_time_epoch - staticData.nextGw.deadline_time_game_offset + thirtyMins) * 1000
+      // eslint-disable-next-line camelcase
+      const nextUpdate = new Date((deadline_time_epoch - deadline_time_game_offset + thirtyMins) * 1000);
+      staticData.footballers = await fpl.getFootballers();
+      const fixtureKickOffTimes = await liveUpdate();
+      const fixtureTimes = fixtureKickOffTimes.map(f =>
+        Object.assign({ kickoff: f, finish: new Date(Date.parse(f) + 1000 * 60 * 60 * 2) })
       );
-      const footballers = await fpl.getFootballers();
-      const live = await fpl.liveFootballerScores(footballers);
-      console.log(`Live scores gathered for ${live} footballers${timeToLoad()}`);
-      staticData.footballers = footballers;
       leagueData.users = await fpl.getLeagueData(leagueCode);
+      loading = false;
+      return { nextUpdate, fixtureTimes };
+    };
+    const run = async details => {
+      // console.log(`run${timeToLoad()}`);
+      const { fixtureTimes, nextUpdate } = details;
+
+      const t = new Date();
+
+      let inProgress = false;
+
+      for (const f of fixtureTimes) {
+        if (f.kickoff > t && t < f.finish) {
+          inProgress = true;
+          break;
+        }
+      }
+
+      const adjustment = t.getSeconds() % 5;
+
+      if (t.getMinutes() % 5 === 0 && t.getSeconds() === 0 && inProgress) {
+        console.log('Getting live update');
+        await liveUpdate();
+        for (const user of leagueData.users) {
+          Object.assign(user, { liveWeekTotal: this.userLiveScores(user) });
+          Object.assign(user, this.userScores(user));
+        }
+      }
+
+      if (t > nextUpdate) {
+        Object.assign(details, await weekly());
+      }
+      const timeout = (5 - adjustment) * 1000;
+
+      setTimeout(run, timeout, details);
     };
     try {
-      // console.log(time);
-      run();
-      // setInterval(run, 1000 * 60 * 5);
+      const details = await weekly();
+      await run(details);
     } catch (e) {
       throw e;
     }
@@ -113,12 +149,11 @@ const fpl = {
       console.log(`${Object.keys(footballers).length} footballers loaded in${timeToLoad()}`);
 
       let i = 1;
-      const activeFootballers = footballers.filter(f => f.minutes > 900 && f.element_type > 3);
+      const activeFootballers = footballers.filter(f => f.minutes > 0 && f.element_type > 1);
       const maxNameLength = Math.max(...activeFootballers.map(f => f.web_name.length));
 
       const getRating = async footballer => {
         const rating = await this.getStats(footballer);
-        // console.log(`Stats gathered for ${footballer.web_name} ${i}/${footballers.length}`);
         singleLineLog(
           `Stats gathered for ${footballer.web_name.padEnd(maxNameLength)} ${i}/${activeFootballers.length}`
         );
@@ -203,10 +238,8 @@ const fpl = {
   async liveFootballerScores(footballers) {
     try {
       const { elements, fixtures } = await req(`event/${staticData.currentGw.id}/live`);
-      const fixturesInProgress = fixtures.filter(f => f.started && !f.finished_provisional);
+      // const fixturesInProgress = fixtures.filter(f => f.started && !f.finished_provisional);
       const fixtureKickOffTimes = fixtures.map(f => new Date(f.kickoff_time));
-      console.log(fixtureKickOffTimes);
-      console.log(new Date());
       for (const footballer of footballers) {
         const { explain, stats } = elements[footballer.id];
         const fixtureId = explain[0][1];
@@ -230,7 +263,7 @@ const fpl = {
         }
       }
 
-      return footballers.filter(footballer => footballer.liveScore).length;
+      return fixtureKickOffTimes;
     } catch (e) {
       throw e;
     }
@@ -348,8 +381,13 @@ const fpl = {
     try {
       const id = user.entry;
       Object.assign(user, await this.userPicks(id), { gameweekTransfers: await this.userTransfers(id) });
-      Object.assign(user, { formation: this.getFormation(user.picks) }, { liveWeekTotal: this.userLiveScores(user) });
-      Object.assign(user, await this.userScores(user));
+      Object.assign(user, { formation: this.getFormation(user.picks) });
+
+      // run this line for live updates
+      Object.assign(user, { liveWeekTotal: this.userLiveScores(user) });
+      Object.assign(user, await req(`entry/${user.entry}/history`));
+      Object.assign(user, this.pastUserScores(user));
+      Object.assign(user, this.userScores(user));
       return user.phaseScores.map(score => ({ name: user.player_name, score }));
     } catch (e) {
       throw e;
@@ -403,29 +441,35 @@ const fpl = {
     }
   },
 
+  pastUserScores(user) {
+    const totalTransfers = user.entry.total_transfers;
+    const gameweekScores = [];
+    for (let i = 0; i < user.history.length; i += 1) {
+      const netScore = user.history[i].points - user.history[i].event_transfers_cost;
+      gameweekScores.push(netScore);
+    }
+
+    for (let i = user.history.length; i < staticData.currentGw.id; i += 1) {
+      gameweekScores.unshift(0);
+    }
+    return { gameweekScores, totalTransfers };
+  },
+
   /*
    * get user phase scores
    */
-  async userScores(user) {
-    const { history, entry } = await req(`entry/${user.entry}/history`);
-    const totalTransfers = entry.total_transfers;
-    const gameweekScores = [];
-    for (let i = 0; i < history.length; i += 1) {
-      const netScore = history[i].points - history[i].event_transfers_cost;
-      gameweekScores.push(netScore);
-    }
+  userScores(user) {
+    const { gameweekScores } = user;
 
-    for (let i = history.length; i < staticData.currentGw.id; i += 1) {
-      gameweekScores.unshift(0);
-    }
-
-    const netScore = user.liveWeekTotal + user.pointsHit;
+    // live
+    const netScoreThisWeek = user.liveWeekTotal + user.pointsHit;
 
     if (gameweekScores.length === staticData.currentGw.id) {
-      gameweekScores[staticData.currentGw.id - 1] = netScore;
+      gameweekScores[staticData.currentGw.id - 1] = netScoreThisWeek;
     } else {
-      gameweekScores.push(netScore);
+      gameweekScores.push(netScoreThisWeek);
     }
+    //
 
     const phaseScores = [];
     for (const phase of staticData.phases) {
@@ -438,11 +482,10 @@ const fpl = {
       }
     }
 
-    return { phaseScores, totalTransfers };
+    return { phaseScores };
   },
 
   /*
-   *
    * get user transfers
    */
   async userTransfers(id) {
@@ -485,6 +528,11 @@ const fpl = {
     const squad = Object.assign([], picks);
     const subsIn = squad.slice(11);
 
+    const markSubs = (subOut, subIn) => {
+      picks.find(p => p.element === subOut.element).subOut = true;
+      picks.find(p => p.element === subIn.element).subIn = true;
+    };
+
     for (const subOut of subsOut) {
       let i = 0;
       while (i < subsIn.length) {
@@ -492,8 +540,7 @@ const fpl = {
           swap(squad, subOut.position - 1, subsIn[i].position - 1);
           if (validFormation(this.getFormation(squad))) {
             console.log(`Out: ${subOut.web_name}`, `In: ${subsIn[i].web_name}`);
-            picks.find(p => p.element === subOut.element).subOut = true;
-            picks.find(p => p.element === subsIn[i].element).subIn = true;
+            markSubs(subOut, subsIn);
             subsIn.splice(i, 1);
             break;
           }
@@ -544,12 +591,7 @@ const fpl = {
       title: 'Stats',
       footballers: Object.values(staticData.footballers).filter(f => f.rating)
     };
-    data.footballers.sort((a, b) => {
-      if (a.team === b.team) {
-        return b.total_points - a.total_points;
-      }
-      return a.team - b.team;
-    });
+    data.footballers.sort((a, b) => b.rating.form - a.rating.form);
     response.render('stats', data);
   }
 };

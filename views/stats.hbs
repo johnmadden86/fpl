@@ -1,3 +1,8 @@
+{{#if loading}}
+  <div class="ui active dimmer" title="{{loading}}" id="loader">
+    <div class="ui indeterminate text loader">Loading...</div>
+  </div>
+{{else}}
 <table class="ui compact table">
   <thead class="title">
   <tr>
@@ -30,3 +35,4 @@
   {{/each}}
   </tbody>
 </table>
+{{/if}}

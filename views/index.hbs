@@ -26,9 +26,9 @@
 {{/if}}
 <script>
   const loader = document.getElementById('loader');
-  function reload() {
+  const reload = () => {
     location.reload();
-  }
+  };
 
   if (loader) {
     if (loader.title === 'true') {
@@ -41,7 +41,7 @@
   $( function () {
     $(' .ui.accordion ').accordion({
 
-  });
+    });
   } );
 </script>
 
