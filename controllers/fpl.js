@@ -43,7 +43,7 @@ const req = async url => {
     baseURL: 'https://fantasy.premierleague.com/drf/',
     method: 'GET'
   });
-  axiosRetry(fplRequest, { retries: 10, retryDelay: axiosRetry.exponentialDelay });
+  axiosRetry(fplRequest, { retries: 10 /* , retryDelay: axiosRetry.exponentialDelay */ });
   return (await fplRequest(url)).data;
 };
 
@@ -173,6 +173,7 @@ const fpl = {
       await Promise.all(tasks);
       return footballers;
     } catch (e) {
+      console.log(Object.keys(e));
       throw e;
     }
   },
@@ -366,6 +367,7 @@ const fpl = {
       await Promise.all(tasks);
       return users;
     } catch (e) {
+      console.log(Object.keys(e));
       throw e;
     }
   },
