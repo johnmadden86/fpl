@@ -10,6 +10,7 @@ const Handlebars = require('../utils/handlebar-helper');
 const leagueCode = 484626;
 
 let time = new Date();
+
 const timeToLoad = () => {
   let ttl = new Date() - time;
   ttl /= 1000;
@@ -65,9 +66,8 @@ const fpl = {
       staticData = await fpl.getStaticData();
       // eslint-disable-next-line camelcase
       const { deadline_time_epoch, deadline_time_game_offset } = staticData.nextGw;
-      const thirtyMins = 60 * 30;
       // eslint-disable-next-line camelcase
-      const nextUpdate = new Date((deadline_time_epoch - deadline_time_game_offset + thirtyMins) * 1000);
+      const nextUpdate = new Date((deadline_time_epoch - deadline_time_game_offset + 60 * 30) * 1000);
       staticData.footballers = await fpl.getFootballers();
       const fixtureKickOffTimes = await liveUpdate();
       const fixtureTimes = fixtureKickOffTimes.map(f =>
@@ -78,36 +78,29 @@ const fpl = {
       return { nextUpdate, fixtureTimes };
     };
     const run = async details => {
-      // console.log(`run${timeToLoad()}`);
       const { fixtureTimes, nextUpdate } = details;
-
       const t = new Date();
-
       let inProgress = false;
-
       for (const f of fixtureTimes) {
         if (f.kickoff > t && t < f.finish) {
           inProgress = true;
           break;
         }
       }
-
       const adjustment = t.getSeconds() % 5;
-
       if (t.getMinutes() % 5 === 0 && t.getSeconds() === 0 && inProgress) {
         console.log('Getting live update');
         await liveUpdate();
         for (const user of leagueData.users) {
+          // repeated in get user data
           Object.assign(user, { liveWeekTotal: this.userLiveScores(user) });
           Object.assign(user, this.userScores(user));
         }
       }
-
       if (t > nextUpdate) {
         Object.assign(details, await weekly());
       }
       const timeout = (5 - adjustment) * 1000;
-
       setTimeout(run, timeout, details);
     };
     try {
@@ -172,7 +165,7 @@ const fpl = {
       const tasks = [];
       for (const footballer of activeFootballers) {
         tasks.push(setTimeout(getRating, timeout, footballer));
-        timeout += 10;
+        timeout += 50;
       }
       await Promise.all(tasks);
       return footballers;
@@ -186,11 +179,11 @@ const fpl = {
       const games = (await req(`element-summary/${footballer.id}`)).history;
       const pointsPerGoal = footballer.element_type <= 2 ? 6 : 8 - footballer.element_type;
       const top6 = [1, 6, 12, 13, 14, 17];
-      games.forEach(game => {
+      for (const game of games) {
         const p = 1 + game.round / 10;
         game.formWeight = p ** p;
         game.attackRating = game.threat * pointsPerGoal + game.creativity * 3;
-      });
+      }
 
       const gamesPlayedIn = games.filter(game => game.minutes > 0);
       const homeGames = gamesPlayedIn.filter(game => game.was_home && !top6.includes(game.opponent_team));
@@ -242,7 +235,6 @@ const fpl = {
   async liveFootballerScores(footballers) {
     try {
       const { elements, fixtures } = await req(`event/${staticData.currentGw.id}/live`);
-      // const fixturesInProgress = fixtures.filter(f => f.started && !f.finished_provisional);
       const fixtureKickOffTimes = fixtures.map(f => new Date(f.kickoff_time));
       for (const footballer of footballers) {
         const { explain, stats } = elements[footballer.id];
@@ -351,9 +343,9 @@ const fpl = {
       let timeout = 0;
       const getUserDetails = async user => {
         const tableEntries = await this.getUserData(user);
-        tableEntries.forEach((entry, index) => {
-          staticData.phases[index].table.entries.push(entry);
-        });
+        for (const [index, value] of tableEntries.entries()) {
+          staticData.phases[index].table.entries.push(value);
+        }
         singleLineLog(
           `Data gathered for ${user.player_name.padEnd(maxNameLength)} ${i}/${users.length}${timeToLoad()}`
         );
@@ -378,10 +370,13 @@ const fpl = {
 
   /*
    * get individual user data
-   * --> get user picks for gameweek
-   * --> get user scores
-   * --> get user transfers
-   * --> get formation
+   *
+   * picks for gameweek
+   * transfers
+   * formation
+   * live gameweek score
+   * past gameweek scores
+   * cscores
    */
   async getUserData(user) {
     try {
@@ -389,11 +384,13 @@ const fpl = {
       Object.assign(user, await this.userPicks(id), { gameweekTransfers: await this.userTransfers(id) });
       Object.assign(user, { formation: this.getFormation(user.picks) });
 
-      // run this line for live updates
       Object.assign(user, { liveWeekTotal: this.userLiveScores(user) });
+
       Object.assign(user, await req(`entry/${user.entry}/history`));
       Object.assign(user, this.pastUserScores(user));
-      Object.assign(user, this.userScores(user));
+
+      Object.assign(user, this.userScores(user)); // repeated for live update
+
       return user.phaseScores.map(score => ({ name: user.player_name, score }));
     } catch (e) {
       throw e;
@@ -570,7 +567,7 @@ const fpl = {
 
   index(r, response) {
     const tables = staticData.phases.map(phase => phase.table).filter(table => table.entries.length > 0);
-    tables.forEach((table, index) => {
+    for (const [index, table] of tables.entries()) {
       table.entries.sort((a, b) => b.score - a.score);
       if (index === 0) {
         table.entries[0].prize = 220;
@@ -581,7 +578,7 @@ const fpl = {
       } else {
         table.entries[0].prize = 20;
       }
-    });
+    }
     const data = {
       title: 'Fantasy Football',
       players: leagueData.users,
