@@ -152,10 +152,13 @@ const fpl = {
       const activeFootballers = footballers.filter(f => f.minutes > 0 && f.element_type > 1);
       const maxNameLength = Math.max(...activeFootballers.map(f => f.web_name.length));
 
+      let timeout = 0;
       const getRating = async footballer => {
         const rating = await this.getStats(footballer);
         singleLineLog(
-          `Stats gathered for ${footballer.web_name.padEnd(maxNameLength)} ${i}/${activeFootballers.length}`
+          `Stats gathered for ${footballer.web_name.padEnd(maxNameLength)} ${i}/${
+            activeFootballers.length
+          } ${timeToLoad()}`
         );
         Object.assign(footballer, { rating });
         if (i === activeFootballers.length) {
@@ -168,12 +171,12 @@ const fpl = {
       };
       const tasks = [];
       for (const footballer of activeFootballers) {
-        tasks.push(getRating(footballer));
+        tasks.push(setTimeout(getRating, timeout, footballer));
+        timeout += 10;
       }
       await Promise.all(tasks);
       return footballers;
     } catch (e) {
-      console.log(Object.keys(e));
       throw e;
     }
   },
@@ -249,7 +252,7 @@ const fpl = {
         const fixture = fixtures.find(f => f.id === fixtureId);
         if (fixture.started) {
           footballer.didNotPlay = minutes === 0;
-          footballer.liveScore = /* didNotPlay ? '-' : */ stats.total_points;
+          footballer.liveScore = stats.total_points;
         }
       }
 
@@ -345,6 +348,7 @@ const fpl = {
       const users = (await req(`leagues-classic-standings/${leagueId}`)).standings.results;
       const maxNameLength = Math.max(...users.map(u => u.player_name.length));
       let i = 1;
+      let timeout = 0;
       const getUserDetails = async user => {
         const tableEntries = await this.getUserData(user);
         tableEntries.forEach((entry, index) => {
@@ -362,12 +366,12 @@ const fpl = {
 
       const tasks = [];
       for (const user of users) {
-        tasks.push(getUserDetails(user));
+        tasks.push(setTimeout(getUserDetails, timeout, user));
+        timeout += 50;
       }
       await Promise.all(tasks);
       return users;
     } catch (e) {
-      console.log(Object.keys(e));
       throw e;
     }
   },
@@ -593,7 +597,7 @@ const fpl = {
       title: 'Stats',
       footballers: Object.values(staticData.footballers).filter(f => f.rating)
     };
-    data.footballers.sort((a, b) => b.rating.form - a.rating.form);
+    data.footballers.sort((a, b) => b.rating.value - a.rating.value);
     response.render('stats', data);
   }
 };
