@@ -48,8 +48,8 @@ const req = async url => {
   return (await fplRequest(url)).data;
 };
 
-let staticData;
-const leagueData = { users: [] };
+const staticData = { phases: [] };
+const leagueData = { users: [], tables: [] };
 
 // const arrToObj = arr => arr.reduce((obj, elem) => ({ ...obj, [elem.id]: elem }), {});
 
@@ -62,20 +62,23 @@ const fpl = {
     };
     const weekly = async () => {
       loading = true;
+      const tasks = [];
       time = new Date();
-      staticData = await fpl.getStaticData();
+      tasks.push(Object.assign(staticData, await fpl.getStaticData()));
       // eslint-disable-next-line camelcase
       const { deadline_time_epoch, deadline_time_game_offset } = staticData.nextGw;
       // eslint-disable-next-line camelcase
       const nextUpdate = new Date((deadline_time_epoch - deadline_time_game_offset + 60 * 30) * 1000);
-      staticData.footballers = await fpl.getFootballers();
-      const fixtureKickOffTimes = await liveUpdate();
+      tasks.push(Object.assign(staticData, { footballers: await fpl.getFootballers() }));
+      const fixtureKickOffTimes = [];
+      tasks.push(Object.assign(fixtureKickOffTimes, await liveUpdate()));
+      tasks.push(Object.assign(leagueData.users, await fpl.getLeagueData(leagueCode)));
+      await Promise.all(tasks);
       const fixtureTimes = fixtureKickOffTimes.map(f =>
         Object.assign({ kickoff: f, finish: new Date(Date.parse(f) + 1000 * 60 * 60 * 2) })
       );
-      leagueData.users = await fpl.getLeagueData(leagueCode);
-      loading = false;
-      return { nextUpdate, fixtureTimes };
+
+      return { fixtureTimes, nextUpdate };
     };
     const run = async details => {
       const { fixtureTimes, nextUpdate } = details;
@@ -95,6 +98,7 @@ const fpl = {
           // repeated in get user data
           Object.assign(user, { liveWeekTotal: this.userLiveScores(user) });
           Object.assign(user, this.userScores(user));
+          Object.assign(leagueData.tables, this.tableSort());
         }
       }
       if (t > nextUpdate) {
@@ -165,7 +169,7 @@ const fpl = {
       const tasks = [];
       for (const footballer of activeFootballers) {
         tasks.push(setTimeout(getRating, timeout, footballer));
-        timeout += 50;
+        timeout += 100;
       }
       await Promise.all(tasks);
       return footballers;
@@ -344,6 +348,7 @@ const fpl = {
       const getUserDetails = async user => {
         const tableEntries = await this.getUserData(user);
         for (const [index, value] of tableEntries.entries()) {
+          // console.log(index, value);
           staticData.phases[index].table.entries.push(value);
         }
         singleLineLog(
@@ -352,6 +357,8 @@ const fpl = {
         if (i === users.length) {
           singleLineLog.clear();
           console.log(`${users.length} users retrieved${timeToLoad()}`);
+          Object.assign(leagueData.tables, this.tableSort());
+          loading = false;
         }
         i += 1;
       };
@@ -359,10 +366,10 @@ const fpl = {
       const tasks = [];
       for (const user of users) {
         tasks.push(setTimeout(getUserDetails, timeout, user));
-        timeout += 50;
+        timeout += 1000;
       }
       await Promise.all(tasks);
-      return users;
+      return await users;
     } catch (e) {
       throw e;
     }
@@ -376,7 +383,7 @@ const fpl = {
    * formation
    * live gameweek score
    * past gameweek scores
-   * cscores
+   * scores
    */
   async getUserData(user) {
     try {
@@ -384,17 +391,34 @@ const fpl = {
       Object.assign(user, await this.userPicks(id), { gameweekTransfers: await this.userTransfers(id) });
       Object.assign(user, { formation: this.getFormation(user.picks) });
 
-      Object.assign(user, { liveWeekTotal: this.userLiveScores(user) });
+      Object.assign(user, { liveWeekTotal: this.userLiveScores(user) }); // repeated for live update
 
       Object.assign(user, await req(`entry/${user.entry}/history`));
       Object.assign(user, this.pastUserScores(user));
 
       Object.assign(user, this.userScores(user)); // repeated for live update
-
       return user.phaseScores.map(score => ({ name: user.player_name, score }));
     } catch (e) {
       throw e;
     }
+  },
+
+  tableSort() {
+    const tables = staticData.phases.map(phase => phase.table).filter(table => table.entries.length > 0);
+
+    for (const [index, table] of tables.entries()) {
+      table.entries.sort((a, b) => b.score - a.score);
+      if (index === 0) {
+        table.entries[0].prize = 220;
+        table.entries[1].prize = 100;
+        table.entries[2].prize = 50;
+      } else if (index === 1 || index === 11) {
+        table.entries[0].prize = 10;
+      } else {
+        table.entries[0].prize = 20;
+      }
+    }
+    return tables;
   },
 
   /*
@@ -566,22 +590,10 @@ const fpl = {
   },
 
   index(r, response) {
-    const tables = staticData.phases.map(phase => phase.table).filter(table => table.entries.length > 0);
-    for (const [index, table] of tables.entries()) {
-      table.entries.sort((a, b) => b.score - a.score);
-      if (index === 0) {
-        table.entries[0].prize = 220;
-        table.entries[1].prize = 100;
-        table.entries[2].prize = 50;
-      } else if (index === 1 || index === 11) {
-        table.entries[0].prize = 10;
-      } else {
-        table.entries[0].prize = 20;
-      }
-    }
+    const { users, tables } = leagueData;
     const data = {
       title: 'Fantasy Football',
-      players: leagueData.users,
+      players: users,
       tables,
       loading
     };
