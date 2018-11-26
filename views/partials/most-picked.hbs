@@ -1,0 +1,16 @@
+<div class="ui column four wide">
+  <table class="ui selectable compact table">
+    <thead class="title">
+    <tr>
+      <th colspan="2">Most Picked</th>
+    </tr>
+    </thead>
+    <tbody>
+    {{#each mostPicked}}
+      <tr class="content">
+      <td>{{name}}</td>
+        <td>{{count}}</td>
+    {{/each}}
+    </tbody>
+  </table>
+</div>

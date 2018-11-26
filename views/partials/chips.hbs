@@ -1,5 +1,5 @@
-<div class="ui column four wide">
-  <table class="ui selectable compact celled table">
+<div class="ui column six wide">
+  <table class="ui selectable compact table">
     <thead class="title">
     <tr>
       <th colspan="2">Used Chips</th>
@@ -8,13 +8,17 @@
     <tbody>
     {{#each players}}
       <tr class="content">
-        <td>{{player_name}}</td>
-      <td>
-        {{#each usedChips}}
-          {{readableChip name}}&nbsp;
-        {{/each}}
-      </td>
-      </tr>
+        <td rowspan="{{noZero chips.length}}">{{userName}}
+      {{#unless chips}}
+          <td>
+      {{/unless}}
+        </td>
+      {{#each chips}}
+          <td>
+            {{readableChip name}} - GW {{event}}
+          </td>
+        </tr>
+      {{/each}}
     {{/each}}
     </tbody>
   </table>

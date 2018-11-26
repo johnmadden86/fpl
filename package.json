@@ -9,6 +9,7 @@
   "dependencies": {
     "axios": "^0.18.0",
     "axios-retry": "^3.1.1",
+    "bottleneck": "^2.13.0",
     "express": "^4.16.4",
     "express-handlebars": "^3.0.0",
     "handlebars": "latest",

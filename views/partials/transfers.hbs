@@ -10,11 +10,11 @@
     <tbody class="content">
     {{#each players}}
       <tr>
-        <td rowspan="{{noZero gameweekTransfers.length}}">{{player_name}}</td>
-      {{!--#if}}
-          <td></td>
-          <td></td>
-      {{/if--}}
+        <td rowspan="{{noZero gameweekTransfers.length}}">{{userName}}
+          {{#unless gameweekTransfers}}
+              <td></td><td>
+          {{/unless}}
+        </td>
       {{#each gameweekTransfers}}
           <td><i class="green chevron circle up icon"></i> {{playerIn}}</td>
           <td><i class="red chevron circle down icon"></i> {{playerOut}}</td>

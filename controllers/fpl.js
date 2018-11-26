@@ -1,6 +1,7 @@
 /** @format */
 
 const axios = require('axios');
+// const Bottleneck = require('bottleneck');
 const axiosRetry = require('axios-retry');
 const singleLineLog = require('log-update');
 
@@ -37,18 +38,24 @@ const meanArray = array => {
   });
 };
 
+const medianArray = array => {
+  const copy = [...array];
+  const n = copy.length;
+  copy.sort((a, b) => a - b);
+  return n % 2 === 1 ? copy[Math.floor(n / 2)] : meanArray(copy.slice(n / 2 - 1, n / 2 + 1));
+};
+
 let loading;
 
+// const limiter = new Bottleneck({ maxConcurrent: 10, minTime: 1000 });
+
 const req = async url => {
-  const fplRequest = axios.create({
-    baseURL: 'https://fantasy.premierleague.com/drf/',
-    method: 'GET'
-  });
+  const fplRequest = axios.create({ baseURL: 'https://fantasy.premierleague.com/drf/', method: 'GET' });
   axiosRetry(fplRequest, { retries: 10 /* , retryDelay: axiosRetry.exponentialDelay */ });
   return (await fplRequest(url)).data;
 };
 
-const staticData = { phases: [] };
+const staticData = { phases: [], footballers: [] };
 const leagueData = { users: [], tables: [] };
 
 // const arrToObj = arr => arr.reduce((obj, elem) => ({ ...obj, [elem.id]: elem }), {});
@@ -62,18 +69,20 @@ const fpl = {
     };
     const weekly = async () => {
       loading = true;
-      const tasks = [];
+      // const tasks = [];
       time = new Date();
-      tasks.push(Object.assign(staticData, await fpl.getStaticData()));
-      // eslint-disable-next-line camelcase
-      const { deadline_time_epoch, deadline_time_game_offset } = staticData.nextGw;
-      // eslint-disable-next-line camelcase
-      const nextUpdate = new Date((deadline_time_epoch - deadline_time_game_offset + 60 * 30) * 1000);
-      tasks.push(Object.assign(staticData, { footballers: await fpl.getFootballers() }));
+      // tasks.push(Object.assign(staticData, await fpl.getStaticData()));
+      Object.assign(staticData, await fpl.getStaticData());
+      const { deadline_time_epoch: epoch, deadline_time_game_offset: offset } = staticData.nextGw;
+      const nextUpdate = new Date((epoch - offset + 60 * 30) * 1000);
+      Object.assign(staticData, { footballers: await fpl.getFootballers() });
       const fixtureKickOffTimes = [];
-      tasks.push(Object.assign(fixtureKickOffTimes, await liveUpdate()));
-      tasks.push(Object.assign(leagueData.users, await fpl.getLeagueData(leagueCode)));
-      await Promise.all(tasks);
+      // tasks.push(Object.assign(fixtureKickOffTimes, await liveUpdate()));
+      Object.assign(fixtureKickOffTimes, await liveUpdate());
+      // tasks.push(Object.assign(leagueData.users, await fpl.getLeagueData(leagueCode)));
+      // await Promise.all(tasks);
+      await fpl.getLeagueData(leagueCode);
+
       const fixtureTimes = fixtureKickOffTimes.map(f =>
         Object.assign({ kickoff: f, finish: new Date(Date.parse(f) + 1000 * 60 * 60 * 2) })
       );
@@ -83,20 +92,17 @@ const fpl = {
     const run = async details => {
       const { fixtureTimes, nextUpdate } = details;
       const t = new Date();
-      let inProgress = false;
-      for (const f of fixtureTimes) {
-        if (f.kickoff > t && t < f.finish) {
-          inProgress = true;
-          break;
-        }
-      }
+      const inProgress = fixtureTimes.some(fixture => fixture.kickoff < t && t < fixture.finish);
       const adjustment = t.getSeconds() % 5;
       if (t.getMinutes() % 5 === 0 && t.getSeconds() === 0 && inProgress) {
         console.log('Getting live update');
         await liveUpdate();
         for (const user of leagueData.users) {
           // repeated in get user data
-          Object.assign(user, { liveWeekTotal: this.userLiveScores(user) });
+          const { picks, subsOut, chip, useViceCaptain, viceCaptainScore } = user;
+          Object.assign(user, {
+            liveWeekTotal: this.userLiveScores(picks, subsOut, chip, useViceCaptain, viceCaptainScore)
+          });
           Object.assign(user, this.userScores(user));
           Object.assign(leagueData.tables, this.tableSort());
         }
@@ -146,31 +152,27 @@ const fpl = {
       console.log(`${Object.keys(footballers).length} footballers loaded in${timeToLoad()}`);
 
       let i = 1;
-      const activeFootballers = footballers.filter(f => f.minutes > 0 && f.element_type > 1);
-      const maxNameLength = Math.max(...activeFootballers.map(f => f.web_name.length));
-
-      let timeout = 0;
+      const maxNameLength = Math.max(...footballers.map(f => f.web_name.length));
       const getRating = async footballer => {
         const rating = await this.getStats(footballer);
         singleLineLog(
-          `Stats gathered for ${footballer.web_name.padEnd(maxNameLength)} ${i}/${
-            activeFootballers.length
-          } ${timeToLoad()}`
+          `Stats gathered for ${footballer.web_name.padEnd(maxNameLength)} ${i}/${footballers.length} ${timeToLoad()}`
         );
-        Object.assign(footballer, { rating });
-        if (i === activeFootballers.length) {
+        if (i === footballers.length) {
           singleLineLog.clear();
-          console.log(
-            `Stats for ${activeFootballers.filter(p => p.rating).length} footballers gathered${timeToLoad()}`
-          );
+          console.log(`Stats for ${footballers.filter(p => p.rating).length} footballers gathered${timeToLoad()}`);
         }
         i += 1;
+        Object.assign(footballer, { rating });
       };
+
+      let timeout = 0;
       const tasks = [];
-      for (const footballer of activeFootballers) {
+      for (const footballer of footballers) {
         tasks.push(setTimeout(getRating, timeout, footballer));
         timeout += 100;
       }
+
       await Promise.all(tasks);
       return footballers;
     } catch (e) {
@@ -188,40 +190,32 @@ const fpl = {
         game.formWeight = p ** p;
         game.attackRating = game.threat * pointsPerGoal + game.creativity * 3;
       }
-
       const gamesPlayedIn = games.filter(game => game.minutes > 0);
+      // Object.assign(footballer, { appearances: gamesPlayedIn.length });
+      footballer.appearances = gamesPlayedIn.length;
+      const attackRatings = gamesPlayedIn.map(game => game.attackRating);
+      const total = Math.round(sumArray(attackRatings));
+      const attackRatingsWeighted = games.map(game => game.attackRating * game.formWeight);
       const homeGames = gamesPlayedIn.filter(game => game.was_home && !top6.includes(game.opponent_team));
       const awayGames = gamesPlayedIn.filter(game => !game.was_home && !top6.includes(game.opponent_team));
       const top6Games = gamesPlayedIn.filter(game => top6.includes(game.opponent_team));
-      // const bottom14Games = gamesPlayedIn.filter(game => !top6.includes(game.opponent_team));
-
-      const attackRatings = gamesPlayedIn.map(game => game.attackRating);
-      const attackRatingsWeighted = games.map(game => game.attackRating * game.formWeight);
-
-      const homeAttackRatings = homeGames.map(game => game.attackRating * game.formWeight);
-      const awayAttackRatings = awayGames.map(game => game.attackRating * game.formWeight);
-      const top6AttackRatings = top6Games.map(game => game.attackRating * game.formWeight);
-      // const bottom14AttackRatings = bottom14Games.map(game => game.attackRating);
-      const formWeights = games.map(game => game.formWeight);
-      const formWeightsH = homeGames.map(game => game.formWeight);
-      const formWeightsA = awayGames.map(game => game.formWeight);
-      const formWeights6 = top6Games.map(game => game.formWeight);
-
-      const total = Math.round(sumArray(attackRatings));
-      const form = Math.round(sumArray(attackRatingsWeighted) / sumArray(formWeights));
-
-      const perHomeGame = Math.round(sumArray(homeAttackRatings) / sumArray(formWeightsH));
-      const perAwayGame = Math.round(sumArray(awayAttackRatings) / sumArray(formWeightsA)); // perHomeGame);
-      const perTop6Game = Math.round(sumArray(top6AttackRatings) / sumArray(formWeights6)); // perHomeGame);
+      const homeAttackRatings = homeGames.map(game => game.attackRating);
+      const awayAttackRatings = awayGames.map(game => game.attackRating);
+      const top6AttackRatings = top6Games.map(game => game.attackRating);
+      const bottom14AttackRatings = homeAttackRatings.concat(awayAttackRatings);
+      const formWeights = gamesPlayedIn.map(game => game.formWeight);
+      const formWeightsSum = sumArray(formWeights);
+      const form = formWeightsSum === 0 ? 0 : Math.round(sumArray(attackRatingsWeighted) / formWeightsSum);
 
       return {
         total,
+        median: Math.round(medianArray(attackRatings)),
         perGame: Math.round(meanArray(attackRatings)),
         per90mins: footballer.minutes === 0 ? 0 : Math.round((90 * total) / footballer.minutes),
-        perHomeGame,
-        perAwayGame,
-        perTop6Game,
-        // perBottom14Game: Math.round(meanArray(bottom14AttackRatings)),
+        perHomeGame: Math.round(medianArray(homeAttackRatings)),
+        perAwayGame: Math.round(medianArray(awayAttackRatings)),
+        perTop6Game: Math.round(medianArray(top6AttackRatings)),
+        perBottom14Game: Math.round(medianArray(bottom14AttackRatings)),
         form,
         value: Math.round(form / (footballer.now_cost / 100)) / 10
       };
@@ -280,42 +274,44 @@ const fpl = {
       const bpsAway = fixture.stats[9].bps.a;
       const bpsHome = fixture.stats[9].bps.h;
       const bps = bpsAway.concat(bpsHome);
-      bps.sort((a, b) => b.value - a.value);
+      const isDefined = currentValue => Object.prototype.hasOwnProperty.call(currentValue, 'value');
+      if (bps.every(isDefined)) {
+        bps.sort((a, b) => b.value - a.value);
 
-      let threeBonusCount = 0;
-      let twoBonusCount = 0;
-      let oneBonusCount = 0;
-      let i = 0;
-      while (bps[0].value === bps[i].value) {
-        threeBonusCount += 1;
-        i += 1;
-      }
+        let threeBonusCount = 0;
+        let twoBonusCount = 0;
+        let oneBonusCount = 0;
+        let i = 0;
+        while (bps[0].value === bps[i].value) {
+          threeBonusCount += 1;
+          i += 1;
+        }
 
-      while (threeBonusCount === 1 && bps[1].value === bps[i].value) {
-        twoBonusCount += 1;
-        i += 1;
-      }
+        while (threeBonusCount === 1 && bps[1].value === bps[i].value) {
+          twoBonusCount += 1;
+          i += 1;
+        }
 
-      while (threeBonusCount + twoBonusCount === 2 && bps[2].value === bps[i].value) {
-        oneBonusCount += 1;
-        i += 1;
-      }
+        while (threeBonusCount + twoBonusCount === 2 && bps[2].value === bps[i].value) {
+          oneBonusCount += 1;
+          i += 1;
+        }
 
-      let j = 0;
-      while (j < threeBonusCount) {
-        three.push(bps[j].element);
-        j += 1;
-      }
-      while (j < threeBonusCount + twoBonusCount) {
-        two.push(bps[j].element);
-        j += 1;
-      }
-      while (j < threeBonusCount + twoBonusCount + oneBonusCount) {
-        one.push(bps[j].element);
-        j += 1;
+        let j = 0;
+        while (j < threeBonusCount) {
+          three.push(bps[j].element);
+          j += 1;
+        }
+        while (j < threeBonusCount + twoBonusCount) {
+          two.push(bps[j].element);
+          j += 1;
+        }
+        while (j < threeBonusCount + twoBonusCount + oneBonusCount) {
+          one.push(bps[j].element);
+          j += 1;
+        }
       }
     }
-
     return [one, two, three];
   },
 
@@ -346,30 +342,31 @@ const fpl = {
       let i = 1;
       let timeout = 0;
       const getUserDetails = async user => {
-        const tableEntries = await this.getUserData(user);
+        const { userId, userName } = user;
+        const { tableEntries, ...r } = await this.getUserData(userId, userName);
         for (const [index, value] of tableEntries.entries()) {
-          // console.log(index, value);
           staticData.phases[index].table.entries.push(value);
         }
-        singleLineLog(
-          `Data gathered for ${user.player_name.padEnd(maxNameLength)} ${i}/${users.length}${timeToLoad()}`
-        );
+        console.log(`Data gathered for ${userName.padEnd(maxNameLength)} ${i}/${users.length}${timeToLoad()}`);
         if (i === users.length) {
-          singleLineLog.clear();
+          // singleLineLog.clear();
           console.log(`${users.length} users retrieved${timeToLoad()}`);
           Object.assign(leagueData.tables, this.tableSort());
           loading = false;
         }
         i += 1;
+        Object.assign(user, r);
+        leagueData.users.push(user);
       };
 
       const tasks = [];
-      for (const user of users) {
+      for (let user of users) {
+        const { entry: userId, player_name: userName } = user;
+        user = { userId, userName };
         tasks.push(setTimeout(getUserDetails, timeout, user));
         timeout += 1000;
       }
       await Promise.all(tasks);
-      return await users;
     } catch (e) {
       throw e;
     }
@@ -385,19 +382,40 @@ const fpl = {
    * past gameweek scores
    * scores
    */
-  async getUserData(user) {
+  async getUserData(id, name) {
     try {
-      const id = user.entry;
-      Object.assign(user, await this.userPicks(id), { gameweekTransfers: await this.userTransfers(id) });
-      Object.assign(user, { formation: this.getFormation(user.picks) });
+      const { picks, captain, useViceCaptain, viceCaptainScore, chip, pointsHit, subsOut } = await this.userPicks(id);
+      const gameweekTransfers = await this.userTransfers(id);
+      const formation = await this.getFormation(picks);
 
-      Object.assign(user, { liveWeekTotal: this.userLiveScores(user) }); // repeated for live update
+      const liveWeekTotal = this.userLiveScores(picks, subsOut, chip, useViceCaptain, viceCaptainScore); //
 
-      Object.assign(user, await req(`entry/${user.entry}/history`));
-      Object.assign(user, this.pastUserScores(user));
+      const { chips, entry, leagues, season, history } = await req(`entry/${id}/history`);
+      const gameweekScores = this.pastUserScores(entry, history);
 
-      Object.assign(user, this.userScores(user)); // repeated for live update
-      return user.phaseScores.map(score => ({ name: user.player_name, score }));
+      const phaseScores = this.userScores(gameweekScores, liveWeekTotal, pointsHit); //
+
+      const tableEntries = phaseScores.map(score => ({ name, score }));
+
+      return {
+        picks,
+        captain,
+        useViceCaptain,
+        chip,
+        pointsHit,
+        subsOut,
+        gameweekTransfers,
+        formation,
+        liveWeekTotal,
+        chips,
+        entry,
+        leagues,
+        season,
+        history,
+        gameweekScores,
+        phaseScores,
+        tableEntries
+      };
     } catch (e) {
       throw e;
     }
@@ -414,6 +432,9 @@ const fpl = {
         table.entries[2].prize = 50;
       } else if (index === 1 || index === 11) {
         table.entries[0].prize = 10;
+      } else if (index === 3) {
+        table.entries[0].prize = 10;
+        table.entries[1].prize = 10;
       } else {
         table.entries[0].prize = 20;
       }
@@ -421,20 +442,15 @@ const fpl = {
     return tables;
   },
 
-  /*
-   * get user gameweek picks
-   */
   async userPicks(id) {
     try {
-      // eslint-disable-next-line camelcase
-      const { active_chip, entry_history, picks } = await req(`entry/${id}/event/${staticData.currentGw.id}/picks`);
-      // eslint-disable-next-line camelcase
-      const pointsHit = entry_history.event_transfers_cost * -1;
+      const { active_chip: chip, entry_history: history, picks } = await req(
+        `entry/${id}/event/${staticData.currentGw.id}/picks`
+      );
+      const pointsHit = history.event_transfers_cost * -1;
       let captain;
       let useViceCaptain = false;
       let viceCaptainScore;
-      // eslint-disable-next-line camelcase
-      const chip = active_chip;
       const subsOut = [];
       for (const pick of picks) {
         const footballer = staticData.footballers.find(f => f.id === pick.element);
@@ -442,7 +458,9 @@ const fpl = {
         if (pick.didNotPlay && pick.position < 11) {
           subsOut.push(pick);
         }
-        pick.liveScore *= pick.multiplier;
+        if (pick.liveScore) {
+          pick.liveScore *= pick.multiplier;
+        }
         if (pick.is_captain) {
           captain = pick.web_name;
           if (pick.didNotPlay) {
@@ -468,55 +486,47 @@ const fpl = {
     }
   },
 
-  pastUserScores(user) {
-    const totalTransfers = user.entry.total_transfers;
+  pastUserScores(entry, history) {
     const gameweekScores = [];
-    for (let i = 0; i < user.history.length; i += 1) {
-      const netScore = user.history[i].points - user.history[i].event_transfers_cost;
+    for (let i = 0; i < history.length; i += 1) {
+      const netScore = history[i].points - history[i].event_transfers_cost;
       gameweekScores.push(netScore);
     }
-
-    for (let i = user.history.length; i < staticData.currentGw.id; i += 1) {
+    for (let i = history.length; i < staticData.currentGw.id; i += 1) {
       gameweekScores.unshift(0);
     }
-    return { gameweekScores, totalTransfers };
+    return gameweekScores;
   },
 
-  /*
-   * get user phase scores
-   */
-  userScores(user) {
-    const { gameweekScores } = user;
-
-    // live
-    const netScoreThisWeek = user.liveWeekTotal + user.pointsHit;
-
+  userScores(gameweekScores, liveWeekTotal, pointsHit) {
+    const netScoreThisWeek = liveWeekTotal + pointsHit;
     if (gameweekScores.length === staticData.currentGw.id) {
+      // replace gw score
       gameweekScores[staticData.currentGw.id - 1] = netScoreThisWeek;
     } else {
+      // insert gw score
       gameweekScores.push(netScoreThisWeek);
     }
-    //
-
     const phaseScores = [];
     for (const phase of staticData.phases) {
       const start = phase.start_event - 1;
       const end = phase.stop_event;
       const scores = gameweekScores.slice(start, end);
-      if (scores.length > 0) {
-        const score = scores.reduce((tot, val) => tot + val);
-        phaseScores.push(score);
-      }
+      const score = sumArray(scores);
+      phaseScores.push(score);
     }
-
-    return { phaseScores };
+    return phaseScores;
   },
 
-  /*
-   * get user transfers
-   */
   async userTransfers(id) {
-    const { history } = await req(`entry/${id}/transfers`);
+    const { history, wildcards } = await req(`entry/${id}/transfers`);
+    const wildcardWeeks = wildcards.map(w => w.event);
+    const transferWeeks = history.map(h => h.event).filter(t => !wildcardWeeks.includes(t));
+    const transferHistory = [];
+    for (const phase of staticData.phases) {
+      const d = transferWeeks.filter(v => phase.start_event <= v && v <= phase.stop_event);
+      transferHistory.push({ name: phase.name, transfers: d.length });
+    }
     const gameweekTransfers = history.filter(transfer => transfer.event === staticData.currentGw.id);
     for (const transfer of gameweekTransfers) {
       transfer.playerIn = staticData.footballers.find(f => f.id === transfer.element_in).web_name;
@@ -525,9 +535,6 @@ const fpl = {
     return gameweekTransfers;
   },
 
-  /*
-   * get formation
-   * */
   getFormation(squad) {
     const team = squad.slice(0, 11);
     const gk = team.filter(player => player.element_type === 1).length;
@@ -537,8 +544,7 @@ const fpl = {
     return { g: gk, d: df, m: mf, f: fw };
   },
 
-  /* get live gameweek scores */
-  userLiveScores(user) {
+  userLiveScores(picks, subsOut, chip, useViceCaptain, viceCaptainScore) {
     const validFormation = formation => {
       const eleven = formation.g + formation.d + formation.m + formation.f === 11;
       const positions = formation.g === 1 && formation.d >= 3 && formation.f >= 1;
@@ -548,10 +554,10 @@ const fpl = {
       [arr[i], arr[j]] = [arr[j], arr[i]];
     };
 
-    const { picks, subsOut, chip, useViceCaptain, viceCaptainScore } = user;
     if (chip === 'bboost') {
       return sumArray(picks.map(p => p.liveScore));
     }
+
     const squad = Object.assign([], picks);
     const subsIn = squad.slice(11);
 
@@ -567,7 +573,7 @@ const fpl = {
           swap(squad, subOut.position - 1, subsIn[i].position - 1);
           if (validFormation(this.getFormation(squad))) {
             console.log(`Out: ${subOut.web_name}`, `In: ${subsIn[i].web_name}`);
-            markSubs(subOut, subsIn);
+            markSubs(subOut, subsIn[i]);
             subsIn.splice(i, 1);
             break;
           }
@@ -577,8 +583,8 @@ const fpl = {
       }
     }
 
-    const scorers = squad.slice(0, 11);
-    const scores = scorers.map(scorer => scorer.liveScore);
+    const scorers = squad.slice(0, 11).filter(s => s.liveScore);
+    const scores = scorers.map(scorer => (Number.isNaN(scorer.liveScore) ? 0 : scorer.liveScore));
     let score = sumArray(scores);
     if (useViceCaptain) {
       score += viceCaptainScore;
@@ -590,23 +596,66 @@ const fpl = {
   },
 
   index(r, response) {
-    const { users, tables } = leagueData;
+    const {
+      phases,
+      currentGw: { id: gw }
+    } = staticData;
+    const tables = phases.filter(phase => phase.start_event <= gw).map(phase => phase.table);
+    const { users } = leagueData;
+    let picks = [];
+    for (const user of users) {
+      picks = picks.concat(user.picks);
+    }
+    picks = picks.map(m => m.web_name);
+    picks.sort();
+    let mostPicked = [];
+    for (const pick of picks) {
+      if (mostPicked.map(mp => mp.name).includes(pick)) {
+        mostPicked.find(mp => mp.name === pick).count += 1;
+      } else {
+        mostPicked.push({ name: pick, count: 1 });
+      }
+    }
+    mostPicked = mostPicked.filter(mp => mp.count > 1);
+    mostPicked.sort((a, b) => {
+      if (a.count === b.count) {
+        if (a.name === b.name) {
+          return 0;
+        }
+        return a.name < b.name ? -1 : 1;
+      }
+      return b.count - a.count;
+    });
     const data = {
       title: 'Fantasy Football',
       players: users,
+      loading,
       tables,
-      loading
+      mostPicked
     };
 
     response.render('index', data);
   },
 
   stats(r, response) {
+    // const home = [3, 4, 8, 9, 14, 20];
+    // const away = [1, 5, 10, 11, 12, 13, 15, 16];
+    // const top6 = [2, 6, 7, 17, 18, 19];
     const data = {
       title: 'Stats',
-      footballers: Object.values(staticData.footballers).filter(f => f.rating)
+      footballers: Object.values(staticData.footballers).filter(
+        f =>
+          f.rating &&
+          f.element_type >= 2 &&
+          // f.team === 17 &&
+          f.appearances >
+            4 /* &&
+          ((f.rating.perTop6Game >= 300 && top6.includes(f.team)) ||
+            (f.rating.perAwayGame >= 300 && away.includes(f.team)) ||
+            (f.rating.perHomeGame >= 300 && home.includes(f.team))) */
+      )
     };
-    data.footballers.sort((a, b) => b.rating.value - a.rating.value);
+    data.footballers.sort((a, b) => b.rating.form - a.rating.form);
     response.render('stats', data);
   }
 };
