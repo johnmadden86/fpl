@@ -38,11 +38,22 @@ const meanArray = array => {
   });
 };
 
+const s = [];
+
 const medianArray = array => {
   const copy = [...array];
   const n = copy.length;
   copy.sort((a, b) => a - b);
   return n % 2 === 1 ? copy[Math.floor(n / 2)] : meanArray(copy.slice(n / 2 - 1, n / 2 + 1));
+};
+
+const range = array => {
+  const copy = [...array];
+  const n = copy.length;
+  copy.sort((a, b) => a - b);
+  const lower = copy.slice(0, Math.ceil(n / 2));
+  const upper = copy.slice(Math.floor(n / 2));
+  return [Math.min(...copy), medianArray(lower), medianArray(copy), medianArray(upper), Math.max(...copy)];
 };
 
 let loading;
@@ -161,6 +172,19 @@ const fpl = {
         if (i === footballers.length) {
           singleLineLog.clear();
           console.log(`Stats for ${footballers.filter(p => p.rating).length} footballers gathered${timeToLoad()}`);
+          // let k = 3;
+          // while (k > 0) {
+          const u = s; // .filter(t => t.bonus === k);
+          const inf = u.map(v => Number(v.influence));
+          const b = u.map(v => v.bps);
+          console.error(range(inf));
+          console.error(meanArray(inf));
+          console.error(range(b));
+          console.error(meanArray(b));
+          const ratio = range(inf).map((ri, index) => Math.round((100 * ri) / range(b)[index]) / 100);
+          console.error(ratio);
+          // k -= 1;
+          // }
         }
         i += 1;
         Object.assign(footballer, { rating });
@@ -189,11 +213,21 @@ const fpl = {
         const p = 1 + game.round / 10;
         game.formWeight = p ** p;
         game.attackRating = game.threat * pointsPerGoal + game.creativity * 3;
+        game.influencePerBps = game.bps === 0 ? 0 : game.influence / game.bps;
+        if (game.bonus > 0) {
+          s.push({
+            influence: game.influence,
+            bps: game.bps,
+            bonus: game.bonus
+          });
+        }
       }
       const gamesPlayedIn = games.filter(game => game.minutes > 0);
       // Object.assign(footballer, { appearances: gamesPlayedIn.length });
       footballer.appearances = gamesPlayedIn.length;
       const attackRatings = gamesPlayedIn.map(game => game.attackRating);
+      let influencePerBps = gamesPlayedIn.map(game => game.influencePerBps);
+      influencePerBps = meanArray(influencePerBps);
       const total = Math.round(sumArray(attackRatings));
       const attackRatingsWeighted = games.map(game => game.attackRating * game.formWeight);
       const homeGames = gamesPlayedIn.filter(game => game.was_home && !top6.includes(game.opponent_team));
@@ -209,6 +243,7 @@ const fpl = {
 
       return {
         total,
+        performance: influencePerBps,
         median: Math.round(medianArray(attackRatings)),
         perGame: Math.round(meanArray(attackRatings)),
         per90mins: footballer.minutes === 0 ? 0 : Math.round((90 * total) / footballer.minutes),
@@ -554,11 +589,14 @@ const fpl = {
       [arr[i], arr[j]] = [arr[j], arr[i]];
     };
 
+    const squad = Object.assign([], picks);
+
     if (chip === 'bboost') {
-      return sumArray(picks.map(p => p.liveScore));
+      const scorers = squad.filter(scorer => scorer.liveScore);
+      const scores = scorers.map(p => (Number.isNaN(p.liveScore) ? 0 : p.liveScore));
+      return sumArray(scores);
     }
 
-    const squad = Object.assign([], picks);
     const subsIn = squad.slice(11);
 
     const markSubs = (subOut, subIn) => {
@@ -583,10 +621,10 @@ const fpl = {
       }
     }
 
-    const scorers = squad.slice(0, 11).filter(s => s.liveScore);
+    const scorers = squad.slice(0, 11).filter(scorer => scorer.liveScore);
     const scores = scorers.map(scorer => (Number.isNaN(scorer.liveScore) ? 0 : scorer.liveScore));
     let score = sumArray(scores);
-    if (useViceCaptain) {
+    if (useViceCaptain && viceCaptainScore) {
       score += viceCaptainScore;
       if (chip === '3xc') {
         score += viceCaptainScore;
@@ -616,7 +654,7 @@ const fpl = {
         mostPicked.push({ name: pick, count: 1 });
       }
     }
-    mostPicked = mostPicked.filter(mp => mp.count > 1);
+    mostPicked = mostPicked.filter(mp => mp.count > 2);
     mostPicked.sort((a, b) => {
       if (a.count === b.count) {
         if (a.name === b.name) {
@@ -646,16 +684,17 @@ const fpl = {
       footballers: Object.values(staticData.footballers).filter(
         f =>
           f.rating &&
-          f.element_type >= 2 &&
+          f.element_type >= 1 &&
           // f.team === 17 &&
           f.appearances >
-            4 /* &&
+            5 /* &&
           ((f.rating.perTop6Game >= 300 && top6.includes(f.team)) ||
             (f.rating.perAwayGame >= 300 && away.includes(f.team)) ||
             (f.rating.perHomeGame >= 300 && home.includes(f.team))) */
       )
     };
-    data.footballers.sort((a, b) => b.rating.form - a.rating.form);
+    const d = staticData.footballers.map(f => f.rating.performance);
+    data.footballers.sort((a, b) => b.rating.performance - a.rating.performance);
     response.render('stats', data);
   }
 };
