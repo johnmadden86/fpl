@@ -419,7 +419,16 @@ const fpl = {
    */
   async getUserData(id, name) {
     try {
-      const { picks, captain, useViceCaptain, viceCaptainScore, chip, pointsHit, subsOut } = await this.userPicks(id);
+      const {
+        picks,
+        captain,
+        viceCaptain,
+        useViceCaptain,
+        viceCaptainScore,
+        chip,
+        pointsHit,
+        subsOut
+      } = await this.userPicks(id);
       const gameweekTransfers = await this.userTransfers(id);
       const formation = await this.getFormation(picks);
 
@@ -435,6 +444,7 @@ const fpl = {
       return {
         picks,
         captain,
+        viceCaptain,
         useViceCaptain,
         chip,
         pointsHit,
@@ -484,6 +494,7 @@ const fpl = {
       );
       const pointsHit = history.event_transfers_cost * -1;
       let captain;
+      let viceCaptain;
       let useViceCaptain = false;
       let viceCaptainScore;
       const subsOut = [];
@@ -503,6 +514,7 @@ const fpl = {
           }
         }
         if (pick.is_vice_captain) {
+          viceCaptain = pick.web_name;
           viceCaptainScore = pick.liveScore;
         }
       }
@@ -510,6 +522,7 @@ const fpl = {
       return {
         picks,
         captain,
+        viceCaptain,
         useViceCaptain,
         viceCaptainScore,
         chip,
@@ -693,7 +706,6 @@ const fpl = {
             (f.rating.perHomeGame >= 300 && home.includes(f.team))) */
       )
     };
-    const d = staticData.footballers.map(f => f.rating.performance);
     data.footballers.sort((a, b) => b.rating.performance - a.rating.performance);
     response.render('stats', data);
   }

@@ -1,15 +1,20 @@
-<div class="ui column four wide">
+<div class="ui column five wide">
   <table class="ui selectable compact celled table">
     <thead class="title">
     <tr>
-      <th colspan="2">Captains</th>
+      <th colspan="3">Captains</th>
     </tr>
     </thead>
     <tbody>
     {{#each players}}
       <tr class="content">
         <td>{{userName}}</td>
-        <td>{{captain}}</td>
+        <td>
+          <span {{#if useViceCaptain}} style="text-decoration: line-through" {{/if}}>
+            {{captain}}
+          </span>
+        {{#if useViceCaptain}} &nbsp; {{viceCaptain}}  {{/if}}
+        </td>
       </tr>
     {{/each}}
     </tbody>
