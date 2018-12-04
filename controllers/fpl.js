@@ -85,7 +85,7 @@ const fpl = {
       // tasks.push(Object.assign(staticData, await fpl.getStaticData()));
       Object.assign(staticData, await fpl.getStaticData());
       const { deadline_time_epoch: epoch, deadline_time_game_offset: offset } = staticData.nextGw;
-      const nextUpdate = new Date((epoch - offset + 60 * 30) * 1000);
+      const nextUpdate = new Date((epoch - offset + 60 * 45) * 1000);
       Object.assign(staticData, { footballers: await fpl.getFootballers() });
       const fixtureKickOffTimes = [];
       // tasks.push(Object.assign(fixtureKickOffTimes, await liveUpdate()));
@@ -222,7 +222,7 @@ const fpl = {
           });
         }
       }
-      const gamesPlayedIn = games.filter(game => game.minutes > 0);
+      const gamesPlayedIn = games.filter(game => game.minutes > 30);
       // Object.assign(footballer, { appearances: gamesPlayedIn.length });
       footballer.appearances = gamesPlayedIn.length;
       const attackRatings = gamesPlayedIn.map(game => game.attackRating);
@@ -697,16 +697,16 @@ const fpl = {
       footballers: Object.values(staticData.footballers).filter(
         f =>
           f.rating &&
-          f.element_type >= 1 &&
+          f.element_type === 2 &&
           // f.team === 17 &&
           f.appearances >
-            5 /* &&
+            6 /* &&
           ((f.rating.perTop6Game >= 300 && top6.includes(f.team)) ||
             (f.rating.perAwayGame >= 300 && away.includes(f.team)) ||
             (f.rating.perHomeGame >= 300 && home.includes(f.team))) */
       )
     };
-    data.footballers.sort((a, b) => b.rating.performance - a.rating.performance);
+    data.footballers.sort((a, b) => b.rating.median - a.rating.median);
     response.render('stats', data);
   }
 };
