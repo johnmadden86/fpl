@@ -110,11 +110,23 @@ const fpl = {
         await liveUpdate();
         for (const user of leagueData.users) {
           // repeated in get user data
-          const { picks, subsOut, chip, useViceCaptain, viceCaptainScore } = user;
+
+          const {
+            picks,
+            subsOut,
+            chip,
+            useViceCaptain,
+            viceCaptainScore,
+            gameweekScores,
+            liveWeekTotal,
+            pointsHit
+          } = user;
           Object.assign(user, {
             liveWeekTotal: this.userLiveScores(picks, subsOut, chip, useViceCaptain, viceCaptainScore)
           });
-          Object.assign(user, this.userScores(user));
+          console.error(user.userName, user.liveWeekTotal);
+
+          Object.assign(user.phaseScores, this.userScores(gameweekScores, liveWeekTotal, pointsHit));
           Object.assign(leagueData.tables, this.tableSort());
         }
       }
