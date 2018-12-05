@@ -124,7 +124,7 @@ const fpl = {
           Object.assign(user, {
             liveWeekTotal: this.userLiveScores(picks, subsOut, chip, useViceCaptain, viceCaptainScore)
           });
-          console.error(user.userName, user.liveWeekTotal);
+          // console.error(user.userName, user.liveWeekTotal);
 
           Object.assign(user.phaseScores, this.userScores(gameweekScores, liveWeekTotal, pointsHit));
           Object.assign(leagueData.tables, this.tableSort());
@@ -178,9 +178,7 @@ const fpl = {
       const maxNameLength = Math.max(...footballers.map(f => f.web_name.length));
       const getRating = async footballer => {
         const rating = await this.getStats(footballer);
-        singleLineLog(
-          `Stats gathered for ${footballer.web_name.padEnd(maxNameLength)} ${i}/${footballers.length} ${timeToLoad()}`
-        );
+        // singleLineLog(`Stats gathered for ${footballer.web_name.padEnd(maxNameLength)} ${i}/${footballers.length} ${timeToLoad()}`);
         if (i === footballers.length) {
           singleLineLog.clear();
           console.log(`Stats for ${footballers.filter(p => p.rating).length} footballers gathered${timeToLoad()}`);
@@ -189,12 +187,12 @@ const fpl = {
           const u = s; // .filter(t => t.bonus === k);
           const inf = u.map(v => Number(v.influence));
           const b = u.map(v => v.bps);
-          console.error(range(inf));
-          console.error(meanArray(inf));
-          console.error(range(b));
-          console.error(meanArray(b));
+          // console.error(range(inf));
+          // console.error(meanArray(inf));
+          // console.error(range(b));
+          // console.error(meanArray(b));
           const ratio = range(inf).map((ri, index) => Math.round((100 * ri) / range(b)[index]) / 100);
-          console.error(ratio);
+          // console.error(ratio);
           // k -= 1;
           // }
         }
@@ -513,7 +511,7 @@ const fpl = {
       for (const pick of picks) {
         const footballer = staticData.footballers.find(f => f.id === pick.element);
         Object.assign(pick, footballer);
-        if (pick.didNotPlay && pick.position < 11) {
+        if (pick.didNotPlay && pick.position <= 11) {
           subsOut.push(pick);
         }
         if (pick.liveScore) {
