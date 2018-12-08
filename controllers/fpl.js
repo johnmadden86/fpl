@@ -95,7 +95,10 @@ const fpl = {
       await fpl.getLeagueData(leagueCode);
 
       const fixtureTimes = fixtureKickOffTimes.map(f =>
-        Object.assign({ kickoff: f, finish: new Date(Date.parse(f) + 1000 * 60 * 60 * 2) })
+        Object.assign({
+          kickoff: new Date(Date.parse(f) + 1000 * 60 * 5),
+          finish: new Date(Date.parse(f) + 1000 * 60 * 60 * 2)
+        })
       );
 
       return { fixtureTimes, nextUpdate };
@@ -103,14 +106,15 @@ const fpl = {
     const run = async details => {
       const { fixtureTimes, nextUpdate } = details;
       const t = new Date();
+      // console.error(fixtureTimes);
       const inProgress = fixtureTimes.some(fixture => fixture.kickoff < t && t < fixture.finish);
       const adjustment = t.getSeconds() % 5;
-      if (t.getMinutes() % 5 === 0 && t.getSeconds() === 0 && inProgress) {
+      // console.error(t, inProgress);
+      if (t.getMinutes() % 2 === 0 && t.getSeconds() === 0 && inProgress) {
         console.log('Getting live update');
         await liveUpdate();
         for (const user of leagueData.users) {
           // repeated in get user data
-
           const {
             picks,
             subsOut,
@@ -175,7 +179,7 @@ const fpl = {
       console.log(`${Object.keys(footballers).length} footballers loaded in${timeToLoad()}`);
 
       let i = 1;
-      const maxNameLength = Math.max(...footballers.map(f => f.web_name.length));
+      //  const maxNameLength = Math.max(...footballers.map(f => f.web_name.length));
       const getRating = async footballer => {
         const rating = await this.getStats(footballer);
         // singleLineLog(`Stats gathered for ${footballer.web_name.padEnd(maxNameLength)} ${i}/${footballers.length} ${timeToLoad()}`);
@@ -239,7 +243,7 @@ const fpl = {
       let influencePerBps = gamesPlayedIn.map(game => game.influencePerBps);
       influencePerBps = meanArray(influencePerBps);
       const total = Math.round(sumArray(attackRatings));
-      const attackRatingsWeighted = games.map(game => game.attackRating * game.formWeight);
+      const attackRatingsWeighted = gamesPlayedIn.map(game => game.attackRating * game.formWeight);
       const homeGames = gamesPlayedIn.filter(game => game.was_home && !top6.includes(game.opponent_team));
       const awayGames = gamesPlayedIn.filter(game => !game.was_home && !top6.includes(game.opponent_team));
       const top6Games = gamesPlayedIn.filter(game => top6.includes(game.opponent_team));
@@ -320,6 +324,8 @@ const fpl = {
       const bpsHome = fixture.stats[9].bps.h;
       const bps = bpsAway.concat(bpsHome);
       const isDefined = currentValue => Object.prototype.hasOwnProperty.call(currentValue, 'value');
+      // console.error(bps);
+      // console.error(bps.every(isDefined));
       if (bps.every(isDefined)) {
         bps.sort((a, b) => b.value - a.value);
 
@@ -707,16 +713,17 @@ const fpl = {
       footballers: Object.values(staticData.footballers).filter(
         f =>
           f.rating &&
-          f.element_type === 2 &&
+          f.element_type >= 3 &&
+          // f.now_cost <= 45 &&
           // f.team === 17 &&
           f.appearances >
-            6 /* &&
+            7 /* &&
           ((f.rating.perTop6Game >= 300 && top6.includes(f.team)) ||
             (f.rating.perAwayGame >= 300 && away.includes(f.team)) ||
             (f.rating.perHomeGame >= 300 && home.includes(f.team))) */
       )
     };
-    data.footballers.sort((a, b) => b.rating.median - a.rating.median);
+    data.footballers.sort((a, b) => b.rating.form - a.rating.form);
     response.render('stats', data);
   }
 };
