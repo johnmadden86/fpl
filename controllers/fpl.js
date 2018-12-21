@@ -97,7 +97,7 @@ const fpl = {
       const fixtureTimes = fixtureKickOffTimes.map(f =>
         Object.assign({
           kickoff: new Date(Date.parse(f) + 1000 * 60 * 5),
-          finish: new Date(Date.parse(f) + 1000 * 60 * 60 * 2)
+          finish: new Date(Date.parse(f) + 1000 * 60 * 60 * 2.5)
         })
       );
 
@@ -115,18 +115,9 @@ const fpl = {
         await liveUpdate();
         for (const user of leagueData.users) {
           // repeated in get user data
-          const {
-            picks,
-            subsOut,
-            chip,
-            useViceCaptain,
-            viceCaptainScore,
-            gameweekScores,
-            liveWeekTotal,
-            pointsHit
-          } = user;
+          const { picks, subsOut, chip, gameweekScores, liveWeekTotal, pointsHit } = user;
           Object.assign(user, {
-            liveWeekTotal: this.userLiveScores(picks, subsOut, chip, useViceCaptain, viceCaptainScore)
+            liveWeekTotal: this.userLiveScores(picks, subsOut, chip)
           });
           // console.error(user.userName, user.liveWeekTotal);
 
@@ -188,14 +179,14 @@ const fpl = {
           console.log(`Stats for ${footballers.filter(p => p.rating).length} footballers gathered${timeToLoad()}`);
           // let k = 3;
           // while (k > 0) {
-          const u = s; // .filter(t => t.bonus === k);
-          const inf = u.map(v => Number(v.influence));
-          const b = u.map(v => v.bps);
+          // const u = s; // .filter(t => t.bonus === k);
+          // const inf = u.map(v => Number(v.influence));
+          // const b = u.map(v => v.bps);
           // console.error(range(inf));
           // console.error(meanArray(inf));
           // console.error(range(b));
           // console.error(meanArray(b));
-          const ratio = range(inf).map((ri, index) => Math.round((100 * ri) / range(b)[index]) / 100);
+          // const ratio = range(inf).map((ri, index) => Math.round((100 * ri) / range(b)[index]) / 100);
           // console.error(ratio);
           // k -= 1;
           // }
@@ -236,7 +227,7 @@ const fpl = {
           });
         }
       }
-      const gamesPlayedIn = games.filter(game => game.minutes > 30);
+      const gamesPlayedIn = games.filter(game => game.minutes > 0);
       // Object.assign(footballer, { appearances: gamesPlayedIn.length });
       footballer.appearances = gamesPlayedIn.length;
       const attackRatings = gamesPlayedIn.map(game => game.attackRating);
@@ -435,20 +426,11 @@ const fpl = {
    */
   async getUserData(id, name) {
     try {
-      const {
-        picks,
-        captain,
-        viceCaptain,
-        useViceCaptain,
-        viceCaptainScore,
-        chip,
-        pointsHit,
-        subsOut
-      } = await this.userPicks(id);
+      const { picks, captain, viceCaptain, useViceCaptain, chip, pointsHit, subsOut } = await this.userPicks(id);
       const gameweekTransfers = await this.userTransfers(id);
       const formation = await this.getFormation(picks);
 
-      const liveWeekTotal = this.userLiveScores(picks, subsOut, chip, useViceCaptain, viceCaptainScore); //
+      const liveWeekTotal = this.userLiveScores(picks, subsOut, chip); //
 
       const { chips, entry, leagues, season, history } = await req(`entry/${id}/history`);
       const gameweekScores = this.pastUserScores(entry, history);
@@ -514,6 +496,7 @@ const fpl = {
       let useViceCaptain = false;
       let viceCaptainScore;
       const subsOut = [];
+      const captMultiplier = picks.find(pick => pick.is_captain).multiplier;
       for (const pick of picks) {
         const footballer = staticData.footballers.find(f => f.id === pick.element);
         Object.assign(pick, footballer);
@@ -534,6 +517,13 @@ const fpl = {
           viceCaptainScore = pick.liveScore;
         }
       }
+      if (useViceCaptain) {
+        const viceCapt = picks.find(pick => pick.is_vice_captain);
+        if (viceCapt.multiplier === 1 && viceCapt.liveScore) {
+          viceCapt.liveScore *= captMultiplier;
+        }
+      }
+
       picks.sort((a, b) => a.position - b.position);
       return {
         picks,
@@ -608,7 +598,7 @@ const fpl = {
     return { g: gk, d: df, m: mf, f: fw };
   },
 
-  userLiveScores(picks, subsOut, chip, useViceCaptain, viceCaptainScore) {
+  userLiveScores(picks, subsOut, chip) {
     const validFormation = formation => {
       const eleven = formation.g + formation.d + formation.m + formation.f === 11;
       const positions = formation.g === 1 && formation.d >= 3 && formation.f >= 1;
@@ -652,14 +642,7 @@ const fpl = {
 
     const scorers = squad.slice(0, 11).filter(scorer => scorer.liveScore);
     const scores = scorers.map(scorer => (Number.isNaN(scorer.liveScore) ? 0 : scorer.liveScore));
-    let score = sumArray(scores);
-    if (useViceCaptain && viceCaptainScore) {
-      score += viceCaptainScore;
-      if (chip === '3xc') {
-        score += viceCaptainScore;
-      }
-    }
-    return score;
+    return sumArray(scores);
   },
 
   index(r, response) {
@@ -713,11 +696,11 @@ const fpl = {
       footballers: Object.values(staticData.footballers).filter(
         f =>
           f.rating &&
-          f.element_type >= 3 &&
-          // f.now_cost <= 45 &&
+          // f.element_type === 3 &&
+          // f.now_cost <= 89 &&
           // f.team === 17 &&
           f.appearances >
-            7 /* &&
+            4 /* &&
           ((f.rating.perTop6Game >= 300 && top6.includes(f.team)) ||
             (f.rating.perAwayGame >= 300 && away.includes(f.team)) ||
             (f.rating.perHomeGame >= 300 && home.includes(f.team))) */
