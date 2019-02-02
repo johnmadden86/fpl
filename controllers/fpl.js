@@ -275,6 +275,7 @@ const fpl = {
       const { elements, fixtures } = await req(`event/${staticData.currentGw.id}/live`);
       const fixtureKickOffTimes = fixtures.map(f => new Date(f.kickoff_time));
       for (const footballer of footballers) {
+        console.error(footballer.id);
         const { explain, stats } = elements[footballer.id];
         const fixtureId = explain[0][1];
         const details = explain[0][0];
@@ -691,22 +692,31 @@ const fpl = {
     // const home = [3, 4, 8, 9, 14, 20];
     // const away = [1, 5, 10, 11, 12, 13, 15, 16];
     // const top6 = [2, 6, 7, 17, 18, 19];
+    // const next6 = [2, 8, 11, 18, 19, 20];
+    // const goodFixtures = [1, 3, 4, 5, 15, 16, 17, 20];
+    const goodFixtures = [1, 15, 19];
     const data = {
       title: 'Stats',
       footballers: Object.values(staticData.footballers).filter(
         f =>
           f.rating &&
+          // f.rating.median > 75 &&
+          // f.rating.form > 125 &&
+          // f.rating.value > 25 &&
           // f.element_type === 3 &&
-          // f.now_cost <= 89 &&
+          // f.now_cost <= 86 &&
+          // goodFixtures.includes(f.team) &&
           // f.team === 17 &&
           f.appearances >
-            4 /* &&
+            0 /* &&
           ((f.rating.perTop6Game >= 300 && top6.includes(f.team)) ||
             (f.rating.perAwayGame >= 300 && away.includes(f.team)) ||
             (f.rating.perHomeGame >= 300 && home.includes(f.team))) */
       )
     };
     data.footballers.sort((a, b) => b.rating.form - a.rating.form);
+    // data.footballers.sort((a, b) => b.rating.median - a.rating.median);
+    // data.footballers.sort((a, b) => b.rating.value - a.rating.value);
     response.render('stats', data);
   }
 };
