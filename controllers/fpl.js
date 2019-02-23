@@ -245,6 +245,9 @@ const fpl = {
       const formWeights = gamesPlayedIn.map(game => game.formWeight);
       const formWeightsSum = sumArray(formWeights);
       const form = formWeightsSum === 0 ? 0 : Math.round(sumArray(attackRatingsWeighted) / formWeightsSum);
+      if (footballer.id === 280) {
+        console.error(formWeights.map(fw => (100 * fw) / formWeightsSum));
+      }
 
       return {
         total,
@@ -275,13 +278,12 @@ const fpl = {
       const { elements, fixtures } = await req(`event/${staticData.currentGw.id}/live`);
       const fixtureKickOffTimes = fixtures.map(f => new Date(f.kickoff_time));
       for (const footballer of footballers) {
-        console.error(footballer.id);
+        // console.error(footballer.id);
         const { explain, stats } = elements[footballer.id];
-        const fixtureId = explain[0][1];
-        const details = explain[0][0];
-        const minutes = details.minutes.value;
+        const fixtureId = explain[0] ? explain[0][1] : null;
+        const minutes = explain[0] ? explain[0][0].minutes.value : 0;
         const fixture = fixtures.find(f => f.id === fixtureId);
-        if (fixture.started) {
+        if (fixture && fixture.started) {
           footballer.didNotPlay = minutes === 0;
           footballer.liveScore = stats.total_points;
         }
@@ -695,6 +697,7 @@ const fpl = {
     // const next6 = [2, 8, 11, 18, 19, 20];
     // const goodFixtures = [1, 3, 4, 5, 15, 16, 17, 20];
     const goodFixtures = [1, 15, 19];
+    const blank = [3, 6, 8, 13, 14, 12, 4, 16];
     const data = {
       title: 'Stats',
       footballers: Object.values(staticData.footballers).filter(
@@ -703,10 +706,11 @@ const fpl = {
           // f.rating.median > 75 &&
           // f.rating.form > 125 &&
           // f.rating.value > 25 &&
-          // f.element_type === 3 &&
-          // f.now_cost <= 86 &&
+          // f.now_cost <= 109 &&
+          f.element_type === 2 &&
           // goodFixtures.includes(f.team) &&
-          // f.team === 17 &&
+          // !blank.includes(f.team) &&
+          // f.team === 15 &&
           f.appearances >
             0 /* &&
           ((f.rating.perTop6Game >= 300 && top6.includes(f.team)) ||
