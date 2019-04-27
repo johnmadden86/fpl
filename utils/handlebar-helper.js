@@ -21,6 +21,8 @@ Handlebars.registerHelper('readableChip', chip => {
       return 'Triple Captain';
     case 'bboost':
       return 'Bench Boost';
+    case true:
+      return 'Unchanged';
     default:
       return null;
   }

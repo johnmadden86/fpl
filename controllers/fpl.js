@@ -1,6 +1,7 @@
 /** @format */
 
 const axios = require('axios');
+const _ = require('lodash');
 // const Bottleneck = require('bottleneck');
 const axiosRetry = require('axios-retry');
 const singleLineLog = require('log-update');
@@ -84,24 +85,31 @@ const fpl = {
       time = new Date();
       // tasks.push(Object.assign(staticData, await fpl.getStaticData()));
       Object.assign(staticData, await fpl.getStaticData());
-      const { deadline_time_epoch: epoch, deadline_time_game_offset: offset } = staticData.nextGw;
-      const nextUpdate = new Date((epoch - offset + 60 * 45) * 1000);
-      Object.assign(staticData, { footballers: await fpl.getFootballers() });
-      const fixtureKickOffTimes = [];
-      // tasks.push(Object.assign(fixtureKickOffTimes, await liveUpdate()));
-      Object.assign(fixtureKickOffTimes, await liveUpdate());
-      // tasks.push(Object.assign(leagueData.users, await fpl.getLeagueData(leagueCode)));
-      // await Promise.all(tasks);
-      await fpl.getLeagueData(leagueCode);
+      if (staticData.updating) {
+        console.log(`Game is updating...`);
+      } else {
+        const { deadline_time_epoch: epoch, deadline_time_game_offset: offset } = staticData.nextGw;
+        const nextUpdate = new Date((epoch - offset + 60 * 45) * 1000);
+        Object.assign(staticData, { footballers: await fpl.getFootballers() });
+        const fixtureKickOffTimes = [];
+        // tasks.push(Object.assign(fixtureKickOffTimes, await liveUpdate()));
+        Object.assign(fixtureKickOffTimes, await liveUpdate());
+        // tasks.push(Object.assign(leagueData.users, await fpl.getLeagueData(leagueCode)));
+        // await Promise.all(tasks);
+        await fpl.getLeagueData(leagueCode);
 
-      const fixtureTimes = fixtureKickOffTimes.map(f =>
-        Object.assign({
-          kickoff: new Date(Date.parse(f) + 1000 * 60 * 5),
-          finish: new Date(Date.parse(f) + 1000 * 60 * 60 * 2.5)
-        })
-      );
+        const fixtureTimes = fixtureKickOffTimes.map(f =>
+          Object.assign({
+            kickoff: new Date(Date.parse(f) + 1000 * 60 * 5),
+            finish: new Date(Date.parse(f) + 1000 * 60 * 60 * 2.5)
+          })
+        );
 
-      return { fixtureTimes, nextUpdate };
+        return {
+          fixtureTimes,
+          nextUpdate
+        };
+      }
     };
     const run = async details => {
       const { fixtureTimes, nextUpdate } = details;
@@ -145,6 +153,9 @@ const fpl = {
   async getStaticData() {
     try {
       const events = await req('events');
+      if (typeof events === 'string') {
+        return { updating: true };
+      }
       console.log(`${events.length} events loaded in${timeToLoad()}`);
       const currentGw = events.find(e => e.is_current === true);
       const nextGw = events.find(e => e.is_next === true);
@@ -157,8 +168,9 @@ const fpl = {
         phase.table = { name: phase.name, entries: [] };
       }
       // teams = (await request('teams')).data;
-      return { events, currentGw, nextGw, phases, fixtures };
+      return { events, currentGw, nextGw, phases, fixtures, updating: false };
     } catch (e) {
+      // console.log(e);
       throw e;
     }
   },
@@ -429,7 +441,9 @@ const fpl = {
    */
   async getUserData(id, name) {
     try {
-      const { picks, captain, viceCaptain, useViceCaptain, chip, pointsHit, subsOut } = await this.userPicks(id);
+      const { picks, captain, viceCaptain, useViceCaptain, chip, pointsHit, subsOut, unchanged } = await this.userPicks(
+        id
+      );
       const gameweekTransfers = await this.userTransfers(id);
       const formation = await this.getFormation(picks);
 
@@ -460,7 +474,8 @@ const fpl = {
         history,
         gameweekScores,
         phaseScores,
-        tableEntries
+        tableEntries,
+        unchanged
       };
     } catch (e) {
       throw e;
@@ -493,6 +508,8 @@ const fpl = {
       const { active_chip: chip, entry_history: history, picks } = await req(
         `entry/${id}/event/${staticData.currentGw.id}/picks`
       );
+      const { picks: lastWeeksPicks } = await req(`entry/${id}/event/${staticData.currentGw.id - 1}/picks`);
+      const unchanged = _.isEqual(lastWeeksPicks, picks);
       const pointsHit = history.event_transfers_cost * -1;
       let captain;
       let viceCaptain;
@@ -536,7 +553,8 @@ const fpl = {
         viceCaptainScore,
         chip,
         pointsHit,
-        subsOut
+        subsOut,
+        unchanged
       };
     } catch (e) {
       throw e;
@@ -691,24 +709,62 @@ const fpl = {
   },
 
   stats(r, response) {
-    // const home = [3, 4, 8, 9, 14, 20];
-    // const away = [1, 5, 10, 11, 12, 13, 15, 16];
-    // const top6 = [2, 6, 7, 17, 18, 19];
-    // const next6 = [2, 8, 11, 18, 19, 20];
-    // const goodFixtures = [1, 3, 4, 5, 15, 16, 17, 20];
-    const goodFixtures = [1, 15, 19];
-    const blank = [3, 6, 8, 13, 14, 12, 4, 16];
+    const gw33 = [
+      1, // Arsenal
+      2, // Bournemouth
+      // 3, // Brighton
+      4, // Burnley
+      // 5, // Cardiff
+      6, // Chelsea
+      7, // Crystal Palace
+      8, // Everton
+      // 9, // Fulham
+      10, // Huddersfield
+      11, // Leicester
+      12, // Liverpool
+      // 13, // Man City
+      // 14, // Man Utd
+      15, // Newcastle
+      16, // Southampton
+      // 17, // Spurs
+      // 18, // Watford
+      19 // West Ham
+      // 20 // Wolves
+    ];
+    const gw36 = [
+      1, // Arsenal
+      2, // Bournemouth
+      3, // Brighton
+      4, // Burnley
+      5, // Cardiff
+      6, // Chelsea
+      7, // Crystal Palace
+      8, // Everton
+      9, // Fulham
+      10, // Huddersfield
+      11, // Leicester
+      12, // Liverpool
+      13, // Man City
+      14, // Man Utd
+      15, // Newcastle
+      16, // Southampton
+      17, // Spurs
+      18, // Watford
+      19, // West Ham
+      20 // Wolves
+    ];
     const data = {
       title: 'Stats',
       footballers: Object.values(staticData.footballers).filter(
         f =>
           f.rating &&
           // f.rating.median > 75 &&
-          // f.rating.form > 125 &&
-          // f.rating.value > 25 &&
-          // f.now_cost <= 109 &&
-          f.element_type === 2 &&
-          // goodFixtures.includes(f.team) &&
+          // f.rating.form >= 175 &&
+          // f.rating.value >= 20 &&
+          // f.now_cost <= 102 &&
+          // f.element_type === 3 &&
+          // gw33.includes(f.team) &&
+          // gw36.includes(f.team) &&
           // !blank.includes(f.team) &&
           // f.team === 15 &&
           f.appearances >

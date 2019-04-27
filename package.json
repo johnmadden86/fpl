@@ -15,7 +15,8 @@
     "handlebars": "latest",
     "log-update": "^2.3.0",
     "prettier": "^1.15.2",
-    "winston": "^3.1.0"
+    "winston": "^3.1.0",
+    "lodash": "latest"
   },
   "devDependencies": {
     "babel-eslint": "^10.0.1",

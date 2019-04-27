@@ -4,7 +4,7 @@
       <thead class="title">
       <tr>
         <th colspan="4">
-          {{userName}}{{#if chip}}<br>({{readableChip chip}}){{/if}}<br>
+          {{userName}}{{#if chip}}<br>({{readableChip chip}}){{/if}}{{#if unchanged}}<br>({{readableChip unchanged}}){{/if}}<br>
           <span class="ui sub header">
             Transfers: {{gameweekTransfers.length}} &nbsp;{{blankIfZero pointsHit}}
             <br>{{formation.d}}-{{formation.m}}-{{formation.f}}
